@@ -1,0 +1,34 @@
+{
+  "name": "@gusm/database",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "sideEffects": false,
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "lint": "oxlint .",
+    "lint:fix": "oxlint --fix .",
+    "format": "oxfmt -c ../oxc-config/oxfmtrc.json .",
+    "format:check": "oxfmt -c ../oxc-config/oxfmtrc.json --check .",
+    "check-types": "tsc --noEmit",
+    "db:types": "supabase gen types typescript --linked > src/database.types.ts",
+    "db:migration:new": "supabase migration new",
+    "db:push": "supabase db push"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.8.0",
+    "@supabase/supabase-js": "^2.90.0",
+    "server-only": "^0.0.1"
+  },
+  "devDependencies": {
+    "@gusm/oxc-config": "workspace:*",
+    "@gusm/typescript-config": "workspace:*",
+    "@types/node": "^20",
+    "oxfmt": "^0.42.0",
+    "oxlint": "^1.57.0",
+    "supabase": "^2.70.5",
+    "typescript": "^5"
+  }
+}

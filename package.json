@@ -7,7 +7,10 @@
     "lint": "turbo run lint",
     "format": "turbo run format",
     "check-types": "turbo run check-types",
-    "format:check": "turbo run format:check"
+    "format:check": "turbo run format:check",
+    "db:types": "pnpm --filter @gusm/database db:types",
+    "db:migration:new": "pnpm --filter @gusm/database db:migration:new",
+    "db:push": "pnpm --filter @gusm/database db:push"
   },
   "devDependencies": {
     "oxfmt": "^0.42.0",
