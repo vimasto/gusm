@@ -19,7 +19,7 @@ This Turborepo includes the following packages/apps:
 - `student`: [Next.js](https://nextjs.org/) app (port 3000)
 - `readonly`: [Next.js](https://nextjs.org/) app (port 3001)
 - `backoffice`: [Next.js](https://nextjs.org/) app (port 3002)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
+- `@gusm/typescript-config`: `tsconfig.json`s used throughout the monorepo
 
 Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
 
