@@ -15,7 +15,7 @@ importers:
         specifier: 5.9.2
         version: 5.9.2
 
-  apps/docs:
+  apps/backoffice:
     dependencies:
       next:
         specifier: 16.2.1
@@ -52,7 +52,7 @@ importers:
         specifier: ^5
         version: 5.9.2
 
-  apps/portal:
+  apps/readonly:
     dependencies:
       next:
         specifier: 16.2.1
@@ -89,7 +89,7 @@ importers:
         specifier: ^5
         version: 5.9.2
 
-  apps/web:
+  apps/student:
     dependencies:
       next:
         specifier: 16.2.1
