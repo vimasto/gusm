@@ -1,6 +1,5 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "nextjs", "import"],
-  "env": { "browser": true, "node": true },
+  "extends": ["./node_modules/@gusm/oxc-config/oxlintrc.shared.json"],
   "ignorePatterns": [".next/**", "out/**", "build/**", "next-env.d.ts"]
 }

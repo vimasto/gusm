@@ -1,0 +1,4 @@
+{
+  "plugins": ["react", "typescript", "nextjs", "import"],
+  "env": { "browser": true, "node": true }
+}

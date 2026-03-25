@@ -1,0 +1,10 @@
+{
+  "name": "@gusm/oxc-config",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "exports": {
+    "./oxlintrc.shared.json": "./oxlintrc.shared.json",
+    "./oxfmtrc.json": "./oxfmtrc.json"
+  }
+}

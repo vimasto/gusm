@@ -1,0 +1,6 @@
+{
+  "ignorePatterns": [],
+  "sortTailwindcss": {
+    "stylesheet": "../../apps/student/app/globals.css"
+  }
+}

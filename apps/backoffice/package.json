@@ -8,8 +8,8 @@
     "start": "next start",
     "lint": "oxlint .",
     "lint:fix": "oxlint --fix .",
-    "format": "oxfmt .",
-    "format:check": "oxfmt --check .",
+    "format": "oxfmt -c ../../packages/oxc-config/oxfmtrc.json .",
+    "format:check": "oxfmt -c ../../packages/oxc-config/oxfmtrc.json --check .",
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
@@ -18,6 +18,7 @@
     "react-dom": "19.2.4"
   },
   "devDependencies": {
+    "@gusm/oxc-config": "workspace:*",
     "@gusm/typescript-config": "workspace:*",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
