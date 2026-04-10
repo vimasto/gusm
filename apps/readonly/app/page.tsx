@@ -1,10 +1,11 @@
 "use client";
+
 import { CalendarBanner } from "@/components/CalendarBanner";
 import { TimeBlockNav } from "@/components/TimeBlockNav";
 import { ParticipantList } from "@/components/ParticipantList";
-import { ACCENT } from "@/lib/occupancy";
 import { useState, useRef, useCallback, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { clsx } from "clsx";
+import Link from "next/link";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MOCK DATA - hardcodeado para validar front
@@ -84,19 +85,13 @@ function getMockData(
   participantCount: number;
 } {
   const seed = dayIdx * 137 + blockIdx * 31;
-  const count = Math.min(
-    Math.floor(seededRand(seed) * 12) + 2,
-    MOCK_TOTAL_SPOTS,
-  );
+  const count = Math.min(Math.floor(seededRand(seed) * 12) + 2, MOCK_TOTAL_SPOTS);
   const participants: string[] = [];
   const used = new Set<string>();
   let attempts = 0;
   while (participants.length < count && attempts < 200) {
     attempts++;
-    const name =
-      FULL_NAMES[
-        Math.floor(seededRand(seed + attempts * 7 + 2) * FULL_NAMES.length)
-      ];
+    const name = FULL_NAMES[Math.floor(seededRand(seed + attempts * 7 + 2) * FULL_NAMES.length)];
     if (name && !used.has(name)) {
       used.add(name);
       participants.push(name);
@@ -137,8 +132,6 @@ function sameDay(a: Date, b: Date) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function ReadonlyView() {
-  const router = useRouter();
-
   const today = new Date();
   const week = getWeek();
   const todayIdx = week.findIndex((d) => sameDay(d, today));
@@ -165,64 +158,68 @@ export default function ReadonlyView() {
   }, []);
 
   const changeDay = useCallback(
-    (delta: number) =>
-      withFade(() => setDayIdx((p) => Math.max(0, Math.min(4, p + delta)))),
+    (delta: number) => withFade(() => setDayIdx((p) => Math.max(0, Math.min(4, p + delta)))),
     [withFade],
   );
 
   const changeBlock = useCallback(
     (delta: number) =>
-      withFade(() =>
-        setBlockIdx((p) =>
-          Math.max(0, Math.min(MOCK_BLOCKS.length - 1, p + delta)),
-        ),
-      ),
+      withFade(() => setBlockIdx((p) => Math.max(0, Math.min(MOCK_BLOCKS.length - 1, p + delta)))),
     [withFade],
   );
 
   useEffect(() => {
     const el = containerRef.current;
+
     if (!el) return;
+
     const onStart = (e: TouchEvent | MouseEvent) => {
       const clientX =
-        "touches" in e
-          ? (e as TouchEvent).touches[0]?.clientX
-          : (e as MouseEvent).clientX;
+        "touches" in e ? (e as TouchEvent).touches[0]?.clientX : (e as MouseEvent).clientX;
       const clientY =
-        "touches" in e
-          ? (e as TouchEvent).touches[0]?.clientY
-          : (e as MouseEvent).clientY;
+        "touches" in e ? (e as TouchEvent).touches[0]?.clientY : (e as MouseEvent).clientY;
       if (clientX === undefined || clientY === undefined) return;
       startPos.current = { x: clientX, y: clientY };
     };
+
     const onEnd = (e: TouchEvent | MouseEvent) => {
       if (!startPos.current) return;
+
       const target = e.target as HTMLElement;
+
       if (target.closest("button")) {
         startPos.current = null;
         return;
       }
+
       const clientX =
         "changedTouches" in e
           ? (e as TouchEvent).changedTouches[0]?.clientX
           : (e as MouseEvent).clientX;
+
       const clientY =
         "changedTouches" in e
           ? (e as TouchEvent).changedTouches[0]?.clientY
           : (e as MouseEvent).clientY;
+
       if (clientX === undefined || clientY === undefined) return;
+
       const dx = clientX - startPos.current.x;
       const dy = clientY - startPos.current.y;
       startPos.current = null;
-      if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > SWIPE_THRESHOLD)
+
+      if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > SWIPE_THRESHOLD) {
         changeDay(dx > 0 ? -1 : 1);
-      else if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > SWIPE_THRESHOLD)
+      } else if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > SWIPE_THRESHOLD) {
         changeBlock(dy > 0 ? -1 : 1);
+      }
     };
+
     el.addEventListener("touchstart", onStart, { passive: true });
     el.addEventListener("touchend", onEnd);
     el.addEventListener("mousedown", onStart);
     document.addEventListener("mouseup", onEnd);
+
     return () => {
       el.removeEventListener("touchstart", onStart);
       el.removeEventListener("touchend", onEnd);
@@ -237,22 +234,13 @@ export default function ReadonlyView() {
   if (!currentBlock) return null;
 
   return (
-    <div
-      className="min-h-screen flex justify-center"
-      style={{ background: "var(--color-bg)" }}
-    >
+    <div className="flex min-h-screen justify-center bg-neutral-950">
       <div
         ref={containerRef}
-        className="relative w-full flex flex-col select-none"
-        style={{
-          maxWidth: 520,
-          height: "100svh",
-          overflow: "hidden",
-          background: "var(--color-surface)",
-        }}
+        className="relative flex h-svh w-full max-w-lg flex-col overflow-hidden bg-black select-none"
       >
         {/* Bloque fijo: banner + navegador horario  */}
-        <div className="flex-shrink-0">
+        <div className="shrink-0">
           <CalendarBanner
             week={week}
             today={today}
@@ -265,6 +253,7 @@ export default function ReadonlyView() {
               })
             }
           />
+
           <TimeBlockNav
             timeRange={currentBlock.timeRange}
             blockPosition={{ current: blockIdx + 1, total: MOCK_BLOCKS.length }}
@@ -278,10 +267,7 @@ export default function ReadonlyView() {
         </div>
 
         {/* area scrollable , lista de participantes */}
-        <div
-          className="flex-1 overflow-y-auto"
-          style={{ overscrollBehavior: "contain" }}
-        >
+        <div className="flex-1 overflow-y-auto overscroll-contain">
           <ParticipantList
             participants={participants}
             totalSpots={MOCK_TOTAL_SPOTS}
@@ -289,53 +275,33 @@ export default function ReadonlyView() {
           />
 
           {/* block dots indicator  */}
-          <div
-            className="flex justify-center items-center gap-1.5 py-3"
-            style={{ borderTop: "1px solid var(--color-divider)" }}
-          >
+          <div className="flex items-center justify-center gap-1.5 border-t border-neutral-900 py-3">
             {MOCK_BLOCKS.map((_, i) => (
               <button
                 key={i}
                 onClick={() => withFade(() => setBlockIdx(i))}
-                className="rounded-full transition-all duration-200"
-                style={{
-                  width: i === blockIdx ? 20 : 6,
-                  height: 6,
-                  backgroundColor: i === blockIdx ? ACCENT : "#27272a",
-                }}
+                className={clsx(
+                  "rounded-full transition-all duration-200 h-1.5",
+                  i === blockIdx ? "w-5 bg-amber-400" : "w-1.5 bg-neutral-900",
+                )}
               />
             ))}
           </div>
 
           {/* swipe hint */}
-          <div
-            className="text-center pb-5"
-            style={{
-              fontSize: 10,
-              color: "var(--color-text-ghost)",
-              letterSpacing: "0.08em",
-            }}
-          >
+          <div className="pb-5 text-center text-xs text-neutral-500">
             desliza para cambiar día &nbsp;·&nbsp; ↕ cambiar bloque horario
           </div>
         </div>
 
         {/* btn flotante: ir a Mi reserva  */}
         {/* todo : actualizar ruta cuando apps/usr este listo */}
-        <button
-          onClick={() => router.push("/student")}
-          className="absolute bottom-6 right-4 flex items-center gap-2 px-4 py-2.5 rounded-full transition-all active:scale-95"
-          style={{
-            background: ACCENT,
-            color: "#000",
-            fontSize: 12,
-            fontWeight: 700,
-            letterSpacing: "0.05em",
-            boxShadow: "0 4px 24px rgba(245,180,0,0.25)",
-          }}
+        <Link
+          href="/student"
+          className="absolute right-4 bottom-6 flex items-center gap-2 rounded-full bg-amber-400 px-4 py-2.5 text-sm font-bold text-black shadow-md transition-all active:scale-95"
         >
           Mi reserva
-        </button>
+        </Link>
       </div>
     </div>
   );

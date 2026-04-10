@@ -1,85 +1,55 @@
-import { ACCENT } from "@/lib/occupancy";
+import { clsx } from "clsx";
 
 interface ParticipantListProps {
   /** strings ya formateados: "Nombre Apellido" —> viene de la query SELECT full_name */
   participants: string[];
   /** capacidad máxima del bloque —> viene de la query de rules/bloques */
   totalSpots: number;
+  /**
+   * FIXME: should be className, not boolean
+   */
   faded: boolean;
 }
 
-export function ParticipantList({
-  participants,
-  totalSpots,
-  faded,
-}: ParticipantListProps) {
-  const rows = Array.from(
-    { length: totalSpots },
-    (_, i) => participants[i] ?? null,
-  );
+function initials(fullName: string) {
+  const [firstName = "", lastName = ""] = fullName.split(" ");
+  return `${firstName[0]}${lastName[0]}`;
+}
 
-  /** Extrae hasta 2 iniciales del string "Nombre Apellido [...]" */
-  function initials(fullName: string): string {
-    return fullName
-      .trim()
-      .split(/\s+/)
-      .slice(0, 2)
-      .map((w) => w[0])
-      .join("")
-      .toUpperCase();
-  }
+export function ParticipantList({ participants, totalSpots, faded }: ParticipantListProps) {
+  const rows = Array.from({ length: totalSpots }, (_, i) => participants[i] ?? null);
 
   return (
     <div
-      className="px-4 pt-1 pb-2 transition-opacity duration-150"
-      style={{ opacity: faded ? 0.1 : 1 }}
+      className={clsx(
+        "px-4 pt-1 pb-2 transition-opacity duration-150",
+        faded ? "opacity-10" : "opacity-100",
+      )}
     >
       {rows.map((fullName, i) => (
         <div
           key={i}
-          className="flex items-center gap-3"
-          style={{
-            paddingTop: 10,
-            paddingBottom: 10,
-            borderBottom: `1px solid ${fullName ? "rgba(245,180,0,0.07)" : "rgba(245,180,0,0.03)"}`,
-          }}
+          className={clsx(
+            "flex items-center gap-3 py-2.5",
+            i < totalSpots - 1 && "border-b border-neutral-900",
+          )}
         >
           {/* Spot number */}
-          <span
-            className="shrink-0 text-right font-mono"
-            style={{
-              width: 18,
-              fontSize: 11,
-              color: fullName ? "rgba(245,180,0,0.30)" : "rgba(245,180,0,0.14)",
-            }}
-          >
+          <span className="w-5 shrink-0 text-right font-mono text-xs text-neutral-500">
             {i + 1}
           </span>
 
           {/* Avatar circle */}
           <div
-            className="shrink-0 rounded-full flex items-center justify-center"
-            style={
+            className={clsx(
+              "flex shrink-0 items-center justify-center rounded-full size-7 border",
               fullName
-                ? {
-                    width: 30,
-                    height: 30,
-                    background: "rgba(245,180,0,0.07)",
-                    border: "1px solid rgba(245,180,0,0.2)",
-                  }
-                : {
-                    width: 30,
-                    height: 30,
-                    background: "rgba(245,180,0,0.02)",
-                    border: "1px solid rgba(245,180,0,0.06)",
-                  }
-            }
+                ? "bg-amber-400/7 border-amber-400/10"
+                : "bg-neutral-900/2 border-neutral-900/6",
+            )}
           >
             {fullName && (
-              <span
-                className="font-semibold"
-                style={{ fontSize: 10, color: ACCENT }}
-              >
+              <span className="text-xs font-semibold text-amber-400 uppercase">
                 {initials(fullName)}
               </span>
             )}
@@ -87,13 +57,9 @@ export function ParticipantList({
 
           {/* Nombre completo */}
           {fullName ? (
-            <span className="text-sm" style={{ color: "#d4d4d8" }}>
-              {fullName}
-            </span>
+            <span className="text-sm text-neutral-300">{fullName}</span>
           ) : (
-            <span style={{ fontSize: 13, color: "rgba(245,180,0,0.22)" }}>
-              — disponible
-            </span>
+            <span className={clsx("text-sm text-amber-400/20")}>— disponible</span>
           )}
         </div>
       ))}

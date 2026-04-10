@@ -1,9 +1,6 @@
 import { ChevronUp, ChevronDown, Users } from "lucide-react";
-import {
-  ACCENT,
-  accentByOccupancy,
-  fillPct as calcFillPct,
-} from "@/lib/occupancy";
+import { accentByOccupancy, fillPct as calcFillPct } from "@/lib/occupancy";
+import clsx from "clsx";
 
 interface TimeBlockNavProps {
   /** "HH:MM – HH:MM" :viene de la query del bloque actual */
@@ -36,55 +33,37 @@ export function TimeBlockNav({
   return (
     <>
       <div
-        className="flex items-center justify-between px-5 py-3"
-        style={{
-          borderBottom: "1px solid var(--color-divider)",
-          background: "var(--color-surface)",
-        }}
+        className={clsx(
+          "flex items-center justify-between px-5 py-3 border-b border-neutral-900 bg-black",
+        )}
       >
         {/* Up arrow + block counter */}
         <div className="flex flex-col items-center gap-0.5">
           <button
             onClick={onPrev}
             disabled={!hasPrev}
-            className="w-9 h-9 flex items-center justify-center rounded-full transition-all disabled:opacity-20"
-            style={{
-              border: "1px solid rgba(245,180,0,0.12)",
-              color: "rgba(245,180,0,0.40)",
-            }}
+            className={clsx(
+              "flex size-9 items-center justify-center rounded-full transition-colors border border-amber-400 text-amber-400",
+              "disabled:opacity-20",
+            )}
           >
-            <ChevronUp size={16} />
+            <ChevronUp className="size-4" />
           </button>
-          <span
-            className="text-center"
-            style={{
-              fontSize: 9,
-              color: "rgba(245,180,0,0.22)",
-              letterSpacing: "0.06em",
-            }}
-          >
+
+          <span className="text-center text-xs text-neutral-500">
             {blockPosition.current}/{blockPosition.total}
           </span>
         </div>
 
         {/* time range */}
-        <div className="text-center">
-          <div
-            className="font-mono font-bold tracking-widest text-white"
-            style={{ fontSize: 22 }}
-          >
-            {timeRange}
-          </div>
-          <div className="flex items-center justify-center gap-1.5 mt-1">
-            <Users size={10} style={{ color: "rgba(245,180,0,0.35)" }} />
-            <span style={{ fontSize: 11 }}>
-              <span style={{ color: accentByOccupancy(fillPct) }}>
-                {participantCount}
-              </span>
-              <span style={{ color: "rgba(245,180,0,0.28)" }}>
-                {" "}
-                inscritos de {totalSpots}
-              </span>
+        <div className="flex flex-col items-center gap-1">
+          <div className="font-mono text-2xl font-bold tracking-widest text-white">{timeRange}</div>
+
+          <div className="flex items-center justify-center gap-1.5">
+            <Users className="size-3 text-amber-400/35" />
+
+            <span className="text-xs text-neutral-500">
+              <span className="text-amber-400">{participantCount}</span> inscritos de {totalSpots}
             </span>
           </div>
         </div>
@@ -94,23 +73,14 @@ export function TimeBlockNav({
           <button
             onClick={onNext}
             disabled={!hasNext}
-            className="w-9 h-9 flex items-center justify-center rounded-full transition-all disabled:opacity-20"
-            style={{
-              border: "1px solid rgba(245,180,0,0.12)",
-              color: "rgba(245,180,0,0.40)",
-            }}
+            className={clsx(
+              "flex size-9 items-center justify-center rounded-full transition-colors border border-amber-400 text-amber-400",
+              "disabled:opacity-20",
+            )}
           >
-            <ChevronDown size={16} />
+            <ChevronDown className="size-4" />
           </button>
-          <span
-            style={{
-              fontSize: 9,
-              color: "rgba(245,180,0,0.22)",
-              letterSpacing: "0.06em",
-            }}
-          >
-            bloque
-          </span>
+          <span className="text-xs text-neutral-500">bloque</span>
         </div>
       </div>
 

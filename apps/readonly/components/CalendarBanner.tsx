@@ -1,5 +1,5 @@
 import { Dumbbell } from "lucide-react";
-import { ACCENT } from "@/lib/occupancy";
+import { clsx } from "clsx";
 
 const DAY_LETTERS = ["L", "M", "X", "J", "V"];
 
@@ -37,32 +37,19 @@ export function CalendarBanner({
   const todayInWeek = week.some((d) => sameDay(d, today));
 
   return (
-    <div
-      className="sticky top-0 z-20"
-      style={{
-        borderBottom: "1px solid var(--color-divider)",
-        background: "var(--color-surface)",
-      }}
-    >
+    <header className="sticky top-0 z-20 border-b border-neutral-900 bg-black">
       {/* Month row */}
-      <div className="flex items-center justify-between px-5 pt-5 pb-3">
+      <div className="flex items-center justify-between p-5">
         <div className="flex items-center gap-2">
-          <Dumbbell size={13} style={{ color: ACCENT }} />
-          <span
-            className="text-xs capitalize"
-            style={{ color: "#52525b", letterSpacing: "0.08em" }}
-          >
-            {monthLabel}
-          </span>
+          <Dumbbell className="size-2.5 shrink-0 text-amber-400" />
+
+          <span className="text-xs text-neutral-500 capitalize">{monthLabel}</span>
         </div>
+
         {todayInWeek && (
           <button
             onClick={onGoToday}
-            className="text-xs px-3 py-1 rounded-full transition-all"
-            style={{
-              backgroundColor: "rgba(245,180,0,0.12)",
-              color: ACCENT,
-            }}
+            className="rounded-full bg-neutral-900 px-3 py-1 text-xs text-amber-400"
           >
             Hoy
           </button>
@@ -70,60 +57,51 @@ export function CalendarBanner({
       </div>
 
       {/* Days */}
-      <div className="grid grid-cols-5 px-2 pb-4 gap-1">
+      <div className="grid grid-cols-5 gap-1 px-2 pb-4">
         {week.map((date, i) => {
-          const isSel = i === selectedDay;
-          const isT = sameDay(date, today);
+          const isSelectedIndex = i === selectedDay;
+          const isToday = sameDay(date, today);
 
           return (
             <button
               key={i}
               onClick={() => onSelectDay(i)}
-              className="flex flex-col items-center gap-1.5 py-1 rounded-2xl transition-all"
+              className="flex flex-col items-center justify-center gap-1.5"
             >
               {/* letter */}
               <span
-                className="text-xs font-medium"
-                style={{
-                  color: isSel ? "#fff" : "var(--color-text-dim)",
-                  letterSpacing: "0.12em",
-                }}
+                className={clsx(
+                  "text-xs font-medium",
+                  isSelectedIndex ? "text-white" : "text-neutral-500",
+                )}
               >
                 {DAY_LETTERS[i]}
               </span>
 
               {/* circle */}
               <div
-                className="w-10 h-10 flex items-center justify-center rounded-full transition-all duration-200"
-                style={isSel ? { background: "#fff" } : {}}
+                className={clsx(
+                  "size-10 flex items-center justify-center rounded-full transition-colors duration-200",
+                  isSelectedIndex ? "bg-white" : "bg-neutral-900",
+                )}
               >
                 <span
-                  className="text-sm font-bold"
-                  style={
-                    isSel
-                      ? { color: "#000" }
-                      : isT
-                        ? { color: ACCENT }
-                        : { color: "#71717a" }
-                  }
+                  className={clsx(
+                    "text-sm font-bold",
+                    isSelectedIndex
+                      ? "text-black"
+                      : isToday
+                        ? "text-amber-400"
+                        : "text-neutral-500",
+                  )}
                 >
                   {date.getDate()}
                 </span>
               </div>
-
-              {/* Pill indicator */}
-              <div
-                className="rounded-full transition-all duration-300"
-                style={{
-                  width: isSel ? 20 : 6,
-                  height: 5,
-                  backgroundColor: isSel ? ACCENT : "#27272a",
-                }}
-              />
             </button>
           );
         })}
       </div>
-    </div>
+    </header>
   );
 }

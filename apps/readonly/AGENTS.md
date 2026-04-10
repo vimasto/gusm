@@ -4,4 +4,6 @@
 
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 
+always use tailwind classes for styling. use clsx for conditional classes.
+
 <!-- END:nextjs-agent-rules -->
