@@ -85,13 +85,19 @@ function getMockData(
   participantCount: number;
 } {
   const seed = dayIdx * 137 + blockIdx * 31;
-  const count = Math.min(Math.floor(seededRand(seed) * 12) + 2, MOCK_TOTAL_SPOTS);
+  const count = Math.min(
+    Math.floor(seededRand(seed) * 12) + 2,
+    MOCK_TOTAL_SPOTS,
+  );
   const participants: string[] = [];
   const used = new Set<string>();
   let attempts = 0;
   while (participants.length < count && attempts < 200) {
     attempts++;
-    const name = FULL_NAMES[Math.floor(seededRand(seed + attempts * 7 + 2) * FULL_NAMES.length)];
+    const name =
+      FULL_NAMES[
+        Math.floor(seededRand(seed + attempts * 7 + 2) * FULL_NAMES.length)
+      ];
     if (name && !used.has(name)) {
       used.add(name);
       participants.push(name);
@@ -158,13 +164,18 @@ export default function ReadonlyView() {
   }, []);
 
   const changeDay = useCallback(
-    (delta: number) => withFade(() => setDayIdx((p) => Math.max(0, Math.min(4, p + delta)))),
+    (delta: number) =>
+      withFade(() => setDayIdx((p) => Math.max(0, Math.min(4, p + delta)))),
     [withFade],
   );
 
   const changeBlock = useCallback(
     (delta: number) =>
-      withFade(() => setBlockIdx((p) => Math.max(0, Math.min(MOCK_BLOCKS.length - 1, p + delta)))),
+      withFade(() =>
+        setBlockIdx((p) =>
+          Math.max(0, Math.min(MOCK_BLOCKS.length - 1, p + delta)),
+        ),
+      ),
     [withFade],
   );
 
@@ -175,9 +186,13 @@ export default function ReadonlyView() {
 
     const onStart = (e: TouchEvent | MouseEvent) => {
       const clientX =
-        "touches" in e ? (e as TouchEvent).touches[0]?.clientX : (e as MouseEvent).clientX;
+        "touches" in e
+          ? (e as TouchEvent).touches[0]?.clientX
+          : (e as MouseEvent).clientX;
       const clientY =
-        "touches" in e ? (e as TouchEvent).touches[0]?.clientY : (e as MouseEvent).clientY;
+        "touches" in e
+          ? (e as TouchEvent).touches[0]?.clientY
+          : (e as MouseEvent).clientY;
       if (clientX === undefined || clientY === undefined) return;
       startPos.current = { x: clientX, y: clientY };
     };
@@ -210,7 +225,10 @@ export default function ReadonlyView() {
 
       if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > SWIPE_THRESHOLD) {
         changeDay(dx > 0 ? -1 : 1);
-      } else if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > SWIPE_THRESHOLD) {
+      } else if (
+        Math.abs(dy) > Math.abs(dx) &&
+        Math.abs(dy) > SWIPE_THRESHOLD
+      ) {
         changeBlock(dy > 0 ? -1 : 1);
       }
     };
@@ -234,10 +252,10 @@ export default function ReadonlyView() {
   if (!currentBlock) return null;
 
   return (
-    <div className="flex min-h-screen justify-center bg-neutral-950">
+    <div className="flex h-svh w-full justify-center bg-neutral-950">
       <div
         ref={containerRef}
-        className="relative flex h-svh w-full max-w-lg flex-col overflow-hidden bg-black select-none"
+        className="relative flex h-svh w-full max-w-[520px] flex-col overflow-hidden bg-black select-none"
       >
         {/* Bloque fijo: banner + navegador horario  */}
         <div className="shrink-0">
@@ -273,31 +291,31 @@ export default function ReadonlyView() {
             totalSpots={MOCK_TOTAL_SPOTS}
             faded={faded}
           />
+        </div>
 
-          {/* block dots indicator  */}
-          <div className="flex items-center justify-center gap-1.5 border-t border-neutral-900 py-3">
-            {MOCK_BLOCKS.map((_, i) => (
-              <button
-                key={i}
-                onClick={() => withFade(() => setBlockIdx(i))}
-                className={clsx(
-                  "rounded-full transition-all duration-200 h-1.5",
-                  i === blockIdx ? "w-5 bg-amber-400" : "w-1.5 bg-neutral-900",
-                )}
-              />
-            ))}
-          </div>
+        {/* block dots indicator  */}
+        <div className="flex items-center justify-center gap-1.5 border-t border-neutral-900 py-3">
+          {MOCK_BLOCKS.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => withFade(() => setBlockIdx(i))}
+              className={clsx(
+                "rounded-full transition-all duration-200 h-1.5",
+                i === blockIdx ? "w-5 bg-amber-400" : "w-1.5 bg-neutral-900",
+              )}
+            />
+          ))}
+        </div>
 
-          {/* swipe hint */}
-          <div className="pb-5 text-center text-xs text-neutral-500">
-            desliza para cambiar día &nbsp;·&nbsp; ↕ cambiar bloque horario
-          </div>
+        {/* swipe hint */}
+        <div className="pb-5 text-center text-xs text-neutral-500">
+          desliza para cambiar día &nbsp;·&nbsp; ↕ cambiar bloque horario
         </div>
 
         {/* btn flotante: ir a Mi reserva  */}
         {/* todo : actualizar ruta cuando apps/usr este listo */}
         <Link
-          href="/student"
+          href="http://192.168.1.10:3001/"
           className="absolute right-4 bottom-6 flex items-center gap-2 rounded-full bg-amber-400 px-4 py-2.5 text-sm font-bold text-black shadow-md transition-all active:scale-95"
         >
           Mi reserva
