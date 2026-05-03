@@ -1,0 +1,25 @@
+{
+  "name": "@gusm/utils",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "sideEffects": false,
+  "exports": {
+    "./date": "./src/date.ts",
+    "./math": "./src/math.ts"
+  },
+  "scripts": {
+    "lint": "oxlint .",
+    "lint:fix": "oxlint --fix .",
+    "format": "oxfmt -c ../../oxc-config/oxfmtrc.json .",
+    "format:check": "oxfmt -c ../../oxc-config/oxfmtrc.json --check .",
+    "check-types": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@gusm/oxc-config": "workspace:*",
+    "@gusm/typescript-config": "workspace:*",
+    "oxfmt": "^0.42.0",
+    "oxlint": "^1.57.0",
+    "typescript": "^5"
+  }
+}
