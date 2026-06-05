@@ -17,3 +17,17 @@ DO NOT EVER use IIFE in jsx. instead compute variables in the component body bef
 let typescript infer the return type of functions.
 
 do not create unnecessary abstraction layers, if a function is only used once, just inline it.
+
+use `type` instead of `interface` for object types.
+
+use tailwind classes + clsx for styling. avoid inline `style={{}}`. use CSS variables in globals.css for custom colors (no arbitrary rgba values).
+
+use Intl.PluralRules for pluralization instead of manual `${count} singular${count !== 1 ? 's' : ''}`.
+
+extract reusable utility functions to packages/utils (date.ts, math.ts, etc.).
+
+use hooks/use-intl.tsx to standardize i18n formatting across the app.
+
+avoid useCallback unless the function is a dependency of another useEffect or passed to a memoized component. Let React compiler handle memoization.
+
+when declaring a component, use: `export function Component({ prop1, ...props }: React.ComponentProps<"tag"> & Props)`

@@ -13,6 +13,7 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
+    "@gusm/utils": "workspace:*",
     "clsx": "^2.1.1",
     "lucide-react": "^1.8.0",
     "next": "16.2.1",
