@@ -6,7 +6,8 @@
   "sideEffects": false,
   "exports": {
     "./date": "./src/date.ts",
-    "./math": "./src/math.ts"
+    "./math": "./src/math.ts",
+    "./link": "./src/link.ts"
   },
   "scripts": {
     "lint": "oxlint .",

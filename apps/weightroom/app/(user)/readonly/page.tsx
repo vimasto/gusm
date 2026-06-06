@@ -85,19 +85,13 @@ function getMockData(
   participantCount: number;
 } {
   const seed = dayIdx * 137 + blockIdx * 31;
-  const count = Math.min(
-    Math.floor(seededRand(seed) * 12) + 2,
-    MOCK_TOTAL_SPOTS,
-  );
+  const count = Math.min(Math.floor(seededRand(seed) * 12) + 2, MOCK_TOTAL_SPOTS);
   const participants: string[] = [];
   const used = new Set<string>();
   let attempts = 0;
   while (participants.length < count && attempts < 200) {
     attempts++;
-    const name =
-      FULL_NAMES[
-        Math.floor(seededRand(seed + attempts * 7 + 2) * FULL_NAMES.length)
-      ];
+    const name = FULL_NAMES[Math.floor(seededRand(seed + attempts * 7 + 2) * FULL_NAMES.length)];
     if (name && !used.has(name)) {
       used.add(name);
       participants.push(name);
@@ -164,18 +158,13 @@ export default function ReadonlyView() {
   }, []);
 
   const changeDay = useCallback(
-    (delta: number) =>
-      withFade(() => setDayIdx((p) => Math.max(0, Math.min(4, p + delta)))),
+    (delta: number) => withFade(() => setDayIdx((p) => Math.max(0, Math.min(4, p + delta)))),
     [withFade],
   );
 
   const changeBlock = useCallback(
     (delta: number) =>
-      withFade(() =>
-        setBlockIdx((p) =>
-          Math.max(0, Math.min(MOCK_BLOCKS.length - 1, p + delta)),
-        ),
-      ),
+      withFade(() => setBlockIdx((p) => Math.max(0, Math.min(MOCK_BLOCKS.length - 1, p + delta)))),
     [withFade],
   );
 
@@ -186,13 +175,9 @@ export default function ReadonlyView() {
 
     const onStart = (e: TouchEvent | MouseEvent) => {
       const clientX =
-        "touches" in e
-          ? (e as TouchEvent).touches[0]?.clientX
-          : (e as MouseEvent).clientX;
+        "touches" in e ? (e as TouchEvent).touches[0]?.clientX : (e as MouseEvent).clientX;
       const clientY =
-        "touches" in e
-          ? (e as TouchEvent).touches[0]?.clientY
-          : (e as MouseEvent).clientY;
+        "touches" in e ? (e as TouchEvent).touches[0]?.clientY : (e as MouseEvent).clientY;
       if (clientX === undefined || clientY === undefined) return;
       startPos.current = { x: clientX, y: clientY };
     };
@@ -225,10 +210,7 @@ export default function ReadonlyView() {
 
       if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > SWIPE_THRESHOLD) {
         changeDay(dx > 0 ? -1 : 1);
-      } else if (
-        Math.abs(dy) > Math.abs(dx) &&
-        Math.abs(dy) > SWIPE_THRESHOLD
-      ) {
+      } else if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > SWIPE_THRESHOLD) {
         changeBlock(dy > 0 ? -1 : 1);
       }
     };

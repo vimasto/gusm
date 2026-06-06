@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { clsx } from "clsx";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -24,7 +25,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
-      <body className="flex min-h-full flex-col">{children}</body>
+      <body
+        className={clsx(
+          "flex flex-col items-center justify-center scroll-smooth",
+          "min-h-svh min-w-full bg-neutral-950 text-neutral-100 antialiased",
+        )}
+      >
+        {children}
+      </body>
     </html>
   );
 }

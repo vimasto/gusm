@@ -10,11 +10,7 @@ import {
   MIN_WEEK_OFFSET,
   MAX_WEEK_OFFSET,
 } from "@/components/UserCalendarBanner";
-import {
-  BlockCard,
-  type UserBlock,
-  type UserBookingStatus,
-} from "@/components/BlockCard";
+import { BlockCard, type UserBlock, type UserBookingStatus } from "@/components/BlockCard";
 import { BookingPanel } from "@/components/BookingPanel";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -63,10 +59,7 @@ function seededRand(seed: number): number {
 function getMockBlocksBase(dayIdx: number, weekOffset: number): UserBlock[] {
   return BASE_BLOCKS.map((b) => {
     const seed = dayIdx * 137 + weekOffset * 97 + b.id * 31;
-    const taken = Math.min(
-      Math.round(seededRand(seed) * 13) + 1,
-      MOCK_TOTAL_SPOTS,
-    );
+    const taken = Math.min(Math.round(seededRand(seed) * 13) + 1, MOCK_TOTAL_SPOTS);
     return { ...b, taken, userStatus: "none" as const };
   });
 }
@@ -96,9 +89,7 @@ export default function UserView() {
   const [dayIdx, setDayIdx] = useState(defaultDay);
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [bookings, setBookings] = useState<Map<DayKey, BookingEntry>>(
-    new Map(),
-  );
+  const [bookings, setBookings] = useState<Map<DayKey, BookingEntry>>(new Map());
 
   const dayKey = `${weekOffset}-${dayIdx}` as DayKey;
   const booking = bookings.get(dayKey) ?? null;
@@ -118,9 +109,7 @@ export default function UserView() {
   }, [dayIdx, weekOffset, booking]);
 
   const selectedBlock = blocks.find((b) => b.id === selectedId) ?? null;
-  const userBookedBlock = booking
-    ? (blocks.find((b) => b.id === booking.blockId) ?? null)
-    : null;
+  const userBookedBlock = booking ? (blocks.find((b) => b.id === booking.blockId) ?? null) : null;
 
   // ── Handlers de calendario ────────────────────────────────────────────────
 
@@ -136,10 +125,7 @@ export default function UserView() {
 
   const handleWeekChange = useCallback(
     (offset: number) => {
-      const clamped = Math.max(
-        MIN_WEEK_OFFSET,
-        Math.min(MAX_WEEK_OFFSET, offset),
-      );
+      const clamped = Math.max(MIN_WEEK_OFFSET, Math.min(MAX_WEEK_OFFSET, offset));
       setWeekOffset(clamped);
       setDayIdx(0);
       const key: DayKey = `${clamped}-0`;
@@ -203,10 +189,7 @@ export default function UserView() {
         />
 
         {/* ── Indicador de semana ────────────────────────────────────── */}
-        <WeekIndicator
-          weekOffset={weekOffset}
-          onWeekChange={handleWeekChange}
-        />
+        <WeekIndicator weekOffset={weekOffset} onWeekChange={handleWeekChange} />
 
         {/* ── Lista de bloques scrolleable ──────────────────────────── */}
         <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-3 flex flex-col gap-2">

@@ -1,12 +1,12 @@
-import { useRef, useEffect, useState, useCallback } from 'react';
-import { ArrowLeft, Flame, Dumbbell } from 'lucide-react';
-import clsx from 'clsx';
+import { useRef, useEffect, useState, useCallback } from "react";
+import { ArrowLeft, Flame, Dumbbell } from "lucide-react";
+import clsx from "clsx";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers (exported so UserView can reuse them)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const DAY_LETTERS = ['L', 'M', 'X', 'J', 'V'];
+const DAY_LETTERS = ["L", "M", "X", "J", "V"];
 const SWIPE_THRESHOLD = 42;
 
 export const MIN_WEEK_OFFSET = -1;
@@ -66,21 +66,21 @@ export function UserCalendarBanner({
   onGoToday,
 }: UserCalendarBannerProps) {
   const today = new Date();
-  const week  = getWeekDates(weekOffset);
+  const week = getWeekDates(weekOffset);
   const todayInWeek = week.some((d) => sameDay(d, today));
 
   const start = week[0]!;
-  const end   = week[4]!;
+  const end = week[4]!;
 
   const monthLabel =
     start.getMonth() === end.getMonth()
-      ? start.toLocaleDateString('es-CL', { month: 'long', year: 'numeric' })
-      : `${start.toLocaleDateString('es-CL', { month: 'short' })} — ${end.toLocaleDateString('es-CL', { month: 'short', year: 'numeric' })}`;
+      ? start.toLocaleDateString("es-CL", { month: "long", year: "numeric" })
+      : `${start.toLocaleDateString("es-CL", { month: "short" })} — ${end.toLocaleDateString("es-CL", { month: "short", year: "numeric" })}`;
 
   // ── Streak popup ─────────────────────────────────────────────────────────
   const [showStreak, setShowStreak] = useState(false);
   const streakRef = useRef<HTMLButtonElement>(null);
-  const timerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const openStreak = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -97,61 +97,64 @@ export function UserCalendarBanner({
   useEffect(() => {
     if (!showStreak) return;
     const handler = () => closeStreak();
-    document.addEventListener('click', handler);
-    return () => document.removeEventListener('click', handler);
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
   }, [showStreak, closeStreak]);
 
-  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
+  useEffect(
+    () => () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    },
+    [],
+  );
 
   // ── Swipe gesture ────────────────────────────────────────────────────────
   const bannerRef = useRef<HTMLDivElement>(null);
-  const startX    = useRef<number | null>(null);
+  const startX = useRef<number | null>(null);
 
   useEffect(() => {
     const el = bannerRef.current;
     if (!el) return;
 
     const onStart = (e: TouchEvent | MouseEvent) => {
-      const clientX = 'touches' in e
-        ? (e as TouchEvent).touches[0]?.clientX
-        : (e as MouseEvent).clientX;
+      const clientX =
+        "touches" in e ? (e as TouchEvent).touches[0]?.clientX : (e as MouseEvent).clientX;
       if (clientX === undefined) return;
       startX.current = clientX;
     };
 
     const onEnd = (e: TouchEvent | MouseEvent) => {
       if (startX.current === null) return;
-      const clientX = 'changedTouches' in e
-        ? (e as TouchEvent).changedTouches[0]?.clientX
-        : (e as MouseEvent).clientX;
+      const clientX =
+        "changedTouches" in e
+          ? (e as TouchEvent).changedTouches[0]?.clientX
+          : (e as MouseEvent).clientX;
       if (clientX === undefined) return;
       const dx = clientX - startX.current;
       startX.current = null;
       if (Math.abs(dx) <= SWIPE_THRESHOLD) return;
-      const next = dx < 0
-        ? Math.min(weekOffset + 1, MAX_WEEK_OFFSET)
-        : Math.max(weekOffset - 1, MIN_WEEK_OFFSET);
+      const next =
+        dx < 0
+          ? Math.min(weekOffset + 1, MAX_WEEK_OFFSET)
+          : Math.max(weekOffset - 1, MIN_WEEK_OFFSET);
       if (next !== weekOffset) onWeekChange(next);
     };
 
-    el.addEventListener('touchstart', onStart, { passive: true });
-    el.addEventListener('touchend', onEnd);
-    el.addEventListener('mousedown', onStart);
-    document.addEventListener('mouseup', onEnd);
+    el.addEventListener("touchstart", onStart, { passive: true });
+    el.addEventListener("touchend", onEnd);
+    el.addEventListener("mousedown", onStart);
+    document.addEventListener("mouseup", onEnd);
     return () => {
-      el.removeEventListener('touchstart', onStart);
-      el.removeEventListener('touchend', onEnd);
-      el.removeEventListener('mousedown', onStart);
-      document.removeEventListener('mouseup', onEnd);
+      el.removeEventListener("touchstart", onStart);
+      el.removeEventListener("touchend", onEnd);
+      el.removeEventListener("mousedown", onStart);
+      document.removeEventListener("mouseup", onEnd);
     };
   }, [weekOffset, onWeekChange]);
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
-    <div
-      ref={bannerRef}
-      className="sticky top-0 z-20 bg-black border-b border-[#111] select-none"
-    >
+    <div ref={bannerRef} className="sticky top-0 z-20 bg-black border-b border-[#111] select-none">
       {/* ── Fila 1 ───────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between px-5 pt-5 pb-3">
         {/* Izquierda: back · dumbbell · mes */}
@@ -176,10 +179,10 @@ export function UserCalendarBanner({
           <button
             onClick={onGoToday}
             className={clsx(
-              'text-xs px-3 py-1 rounded-full transition-all',
+              "text-xs px-3 py-1 rounded-full transition-all",
               todayInWeek
-                ? 'bg-[#f5b400]/[.12] text-[#f5b400]'
-                : 'bg-zinc-900 text-zinc-600 border border-zinc-800'
+                ? "bg-[#f5b400]/[.12] text-[#f5b400]"
+                : "bg-zinc-900 text-zinc-600 border border-zinc-800",
             )}
           >
             Hoy
@@ -198,22 +201,23 @@ export function UserCalendarBanner({
 
             {showStreak && (
               <button
-                onClick={(e) => { e.stopPropagation(); closeStreak(); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  closeStreak();
+                }}
                 className={clsx(
-                  'absolute top-full right-0 mt-2 z-50',
-                  'flex items-center gap-1.5 px-3 py-2 rounded-xl',
-                  'bg-zinc-900 border border-[#f5b400]/20 shadow-xl',
-                  'whitespace-nowrap text-left min-w-[180px]',
-                  'animate-in fade-in slide-in-from-top-1 duration-200'
+                  "absolute top-full right-0 mt-2 z-50",
+                  "flex items-center gap-1.5 px-3 py-2 rounded-xl",
+                  "bg-zinc-900 border border-[#f5b400]/20 shadow-xl",
+                  "whitespace-nowrap text-left min-w-[180px]",
+                  "animate-in fade-in slide-in-from-top-1 duration-200",
                 )}
               >
                 <Flame size={11} className="text-[#f5b400] shrink-0" />
                 <span className="text-[11px] text-zinc-300">
-                  Llevas{' '}
-                  <span className="text-[#f5b400] font-semibold tabular-nums">
-                    {streakWeeks}
-                  </span>{' '}
-                  semana{streakWeeks !== 1 ? 's' : ''} entrenando
+                  Llevas{" "}
+                  <span className="text-[#f5b400] font-semibold tabular-nums">{streakWeeks}</span>{" "}
+                  semana{streakWeeks !== 1 ? "s" : ""} entrenando
                 </span>
               </button>
             )}
@@ -231,7 +235,7 @@ export function UserCalendarBanner({
       <div className="grid grid-cols-5 px-2 pb-4 gap-1">
         {week.map((date, i) => {
           const isSel = i === selectedDay;
-          const isT   = sameDay(date, today);
+          const isT = sameDay(date, today);
 
           return (
             <button
@@ -241,8 +245,8 @@ export function UserCalendarBanner({
             >
               <span
                 className={clsx(
-                  'text-xs font-medium tracking-[0.12em]',
-                  isSel ? 'text-white' : 'text-[#3f3f46]'
+                  "text-xs font-medium tracking-[0.12em]",
+                  isSel ? "text-white" : "text-[#3f3f46]",
                 )}
               >
                 {DAY_LETTERS[i]}
@@ -250,14 +254,14 @@ export function UserCalendarBanner({
 
               <div
                 className={clsx(
-                  'w-10 h-10 flex items-center justify-center rounded-full transition-all duration-200',
-                  isSel && 'bg-white'
+                  "w-10 h-10 flex items-center justify-center rounded-full transition-all duration-200",
+                  isSel && "bg-white",
                 )}
               >
                 <span
                   className={clsx(
-                    'text-sm font-bold',
-                    isSel ? 'text-black' : isT ? 'text-[#f5b400]' : 'text-[#71717a]'
+                    "text-sm font-bold",
+                    isSel ? "text-black" : isT ? "text-[#f5b400]" : "text-[#71717a]",
                   )}
                 >
                   {date.getDate()}
@@ -269,7 +273,7 @@ export function UserCalendarBanner({
                 style={{
                   width: isSel ? 20 : 6,
                   height: 5,
-                  backgroundColor: isSel ? '#f5b400' : '#27272a',
+                  backgroundColor: isSel ? "#f5b400" : "#27272a",
                 }}
               />
             </button>
@@ -289,7 +293,7 @@ interface WeekIndicatorProps {
   onWeekChange: (offset: number) => void;
 }
 
-const WEEK_LABELS = ['Sem. anterior', 'Esta semana', 'Próx. semana'] as const;
+const WEEK_LABELS = ["Sem. anterior", "Esta semana", "Próx. semana"] as const;
 
 export function WeekIndicator({ weekOffset, onWeekChange }: WeekIndicatorProps) {
   const activeDot = weekOffset + 1;
@@ -297,7 +301,7 @@ export function WeekIndicator({ weekOffset, onWeekChange }: WeekIndicatorProps) 
   return (
     <div className="flex items-center justify-center gap-3 py-2 border-b border-[#111] bg-black shrink-0">
       {[0, 1, 2].map((dot) => {
-        const offset   = dot - 1;
+        const offset = dot - 1;
         const isActive = dot === activeDot;
 
         return (
@@ -308,15 +312,15 @@ export function WeekIndicator({ weekOffset, onWeekChange }: WeekIndicatorProps) 
           >
             <div
               className={clsx(
-                'rounded-full transition-all duration-300',
-                isActive ? 'bg-[#f5b400]' : 'bg-zinc-800 group-hover:bg-zinc-600'
+                "rounded-full transition-all duration-300",
+                isActive ? "bg-[#f5b400]" : "bg-zinc-800 group-hover:bg-zinc-600",
               )}
               style={{ width: isActive ? 20 : 6, height: 5 }}
             />
             <span
               className={clsx(
-                'text-[8px] tracking-widest transition-all duration-200',
-                isActive ? 'text-[#f5b400]/60' : 'text-zinc-800'
+                "text-[8px] tracking-widest transition-all duration-200",
+                isActive ? "text-[#f5b400]/60" : "text-zinc-800",
               )}
             >
               {WEEK_LABELS[dot]}

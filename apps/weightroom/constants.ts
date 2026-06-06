@@ -1,0 +1,1 @@
+export const GITHUB_VIMASTO_ORG_URL = "https://github.com/vimasto";
