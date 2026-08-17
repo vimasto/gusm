@@ -36,3 +36,12 @@ yarn-error.log*
 # Misc
 .DS_Store
 *.pem
+
+# Tools cache
+.eslintcache
+.stylelintcache
+.oxlint_cache
+
+# otras
+.dir-locals.el
+.pnpm-store/

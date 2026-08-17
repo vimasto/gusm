@@ -1,0 +1,41 @@
+{
+  "name": "@gusm/weightroom",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port 3000",
+    "build": "next build",
+    "start": "next start",
+    "lint": "oxlint .",
+    "lint:fix": "oxlint --fix .",
+    "format": "oxfmt -c ../../packages/oxc-config/oxfmtrc.json .",
+    "format:check": "oxfmt -c ../../packages/oxc-config/oxfmtrc.json --check .",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@gusm/database": "workspace:*",
+    "@gusm/utils": "workspace:*",
+    "@hookform/resolvers": "^5.4.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.17.0",
+    "next": "16.2.1",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "react-hook-form": "^7.77.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@gusm/oxc-config": "workspace:*",
+    "@gusm/typescript-config": "workspace:*",
+    "@tailwindcss/forms": "^0.5.11",
+    "@tailwindcss/postcss": "^4.3.0",
+    "@types/node": "^20.19.42",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "oxfmt": "^0.42.0",
+    "oxlint": "^1.68.0",
+    "tailwindcss": "^4.3.0",
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+@plugin "@tailwindcss/forms";
+
+@theme inline {
+  --font-sans: var(--font-montserrat);
+}
+
+@theme {
+  --text-xxs: 0.625rem; /* 10px */
+  --text-xxxs: 0.5rem; /* 8px */
+
+  --color-accent: #f5b400;
+  --color-bg: #060606;
+  --color-surface: #000000;
+  --color-divider: #111111;
+  --color-input: #0a0a0a; /* same as neutral 950 */
+  --color-muted: #a1a1aa;
+  --color-dim: #3f3f46;
+  --color-ghost: #2a2a2a;
+
+  --shadow-accent: 0 4px 24px rgba(245, 180, 0, 0.25);
+}
+
+@utility gusm-input-primary {
+  @apply bg-neutral-950 px-4 py-3 text-base text-neutral-300 outline-none;
+  @apply rounded-xl border border-neutral-800;
+  @apply placeholder:text-neutral-700;
+  @apply hover:border-neutral-400;
+  @apply disabled:cursor-not-allowed disabled:border-neutral-300/50 disabled:bg-neutral-100 disabled:text-neutral-500;
+  @apply focus-visible:border-accent/40 focus-visible:ring-0 focus-visible:outline-none;
+  @apply transition-colors transition-discrete duration-200 ease-in-out;
+}
+
+@utility gusm-button-primary {
+  @apply rounded-xl bg-accent px-4 py-3 text-base font-semibold text-neutral-950;
+  @apply transition-colors duration-200 ease-in-out;
+  @apply hover:cursor-pointer hover:bg-accent/90;
+  @apply focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:outline-none;
+  @apply disabled:cursor-not-allowed disabled:opacity-50;
+}
