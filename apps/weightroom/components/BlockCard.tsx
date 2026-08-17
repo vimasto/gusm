@@ -1,6 +1,6 @@
 import { Check, Flame } from "lucide-react";
 import clsx from "clsx";
-import { ACCENT, accentByOccupancy, fillPct as calcFillPct } from "@/lib/occupancy";
+import { accentByOccupancy, fillPct as calcFillPct } from "@/lib/occupancy";
 
 export type UserBookingStatus = "none" | "inscribed" | "confirming" | "confirmed";
 
@@ -62,7 +62,7 @@ export function BlockCard({ block, totalSpots, isSelected, onSelect }: BlockCard
       }}
     >
       {/* ── Fila superior: hora + badge + count ─────────── */}
-      <div className="flex items-center justify-between mb-2">
+      <div className="mb-2 flex items-center justify-between">
         <span
           className={clsx(
             "font-mono tracking-wider",
@@ -75,27 +75,27 @@ export function BlockCard({ block, totalSpots, isSelected, onSelect }: BlockCard
 
         <div className="flex items-center gap-2">
           {block.userStatus === "confirmed" && (
-            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#f5b400]/[.12] border border-[#f5b400]/25">
+            <div className="flex items-center gap-1 rounded-full border border-[#f5b400]/25 bg-[#f5b400]/[.12] px-2 py-0.5">
               <Check size={9} className="text-[#f5b400]" />
-              <span className="text-[9px] text-[#f5b400] tracking-widest">CONFIRMADO</span>
+              <span className="text-[9px] tracking-widest text-[#f5b400]">CONFIRMADO</span>
             </div>
           )}
 
           {block.userStatus === "confirming" && (
-            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#f5b400]/[.15] border border-[#f5b400]/40">
+            <div className="flex items-center gap-1 rounded-full border border-[#f5b400]/40 bg-[#f5b400]/[.15] px-2 py-0.5">
               <Flame size={9} className="text-[#f5b400]" />
-              <span className="text-[9px] text-[#f5b400] tracking-widest">CONFIRMAR</span>
+              <span className="text-[9px] tracking-widest text-[#f5b400]">CONFIRMAR</span>
             </div>
           )}
 
           {block.userStatus === "inscribed" && (
-            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#f5b400]/[.08] border border-[#f5b400]/20">
-              <span className="text-[9px] text-[#f5b400] tracking-widest">TU RESERVA</span>
+            <div className="flex items-center gap-1 rounded-full border border-[#f5b400]/20 bg-[#f5b400]/[.08] px-2 py-0.5">
+              <span className="text-[9px] tracking-widest text-[#f5b400]">TU RESERVA</span>
             </div>
           )}
 
           {isFull && !isUserBlock && (
-            <span className="px-2 py-0.5 rounded-full text-[9px] text-[#f5b400] bg-[#f5b400]/[.08] border border-[#f5b400]/20 tracking-widest">
+            <span className="rounded-full border border-[#f5b400]/20 bg-[#f5b400]/[.08] px-2 py-0.5 text-[9px] tracking-widest text-[#f5b400]">
               LLENO
             </span>
           )}
@@ -112,7 +112,7 @@ export function BlockCard({ block, totalSpots, isSelected, onSelect }: BlockCard
 
       {/* ── Barra de ocupación ────────────────────────── */}
       <div
-        className="rounded-b-xl overflow-hidden"
+        className="overflow-hidden rounded-b-xl"
         style={{ height: 4, background: "#0d0d0d", borderRadius: "0 0 10px 10px" }}
       >
         <div

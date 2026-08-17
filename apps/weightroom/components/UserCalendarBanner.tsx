@@ -154,28 +154,28 @@ export function UserCalendarBanner({
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
-    <div ref={bannerRef} className="sticky top-0 z-20 bg-black border-b border-[#111] select-none">
+    <div ref={bannerRef} className="sticky top-0 z-20 border-b border-[#111] bg-black select-none">
       {/* ── Fila 1 ───────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between px-5 pt-5 pb-3">
         {/* Izquierda: back · dumbbell · mes */}
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="flex min-w-0 items-center gap-2">
           <button
             onClick={onBack}
-            className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-zinc-800 text-zinc-600 shrink-0 transition-transform active:scale-95"
+            className="flex shrink-0 items-center gap-1 rounded-full border border-zinc-800 px-2 py-0.5 text-zinc-600 transition-transform active:scale-95"
           >
             <ArrowLeft size={11} />
             <span className="text-[9px] leading-none tracking-wide">atrás</span>
           </button>
 
-          <Dumbbell size={13} className="text-[#f5b400] shrink-0" />
+          <Dumbbell size={13} className="shrink-0 text-[#f5b400]" />
 
-          <span className="text-xs capitalize text-[#52525b] tracking-[0.08em] truncate">
+          <span className="truncate text-xs tracking-[0.08em] text-[#52525b] capitalize">
             {monthLabel}
           </span>
         </div>
 
         {/* Derecha: Hoy · streak · nombre · avatar */}
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex shrink-0 items-center gap-2">
           <button
             onClick={onGoToday}
             className={clsx(
@@ -193,7 +193,7 @@ export function UserCalendarBanner({
             <button
               ref={streakRef}
               onClick={openStreak}
-              className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-[#f5b400]/[.08] border border-[#f5b400]/20 transition-all active:scale-95"
+              className="flex items-center gap-0.5 rounded-full border border-[#f5b400]/20 bg-[#f5b400]/[.08] px-1.5 py-0.5 transition-all active:scale-95"
             >
               <Flame size={10} className="text-[#f5b400]" />
               <span className="text-[10px] text-[#f5b400] tabular-nums">{streakWeeks}</span>
@@ -213,26 +213,26 @@ export function UserCalendarBanner({
                   "animate-in fade-in slide-in-from-top-1 duration-200",
                 )}
               >
-                <Flame size={11} className="text-[#f5b400] shrink-0" />
+                <Flame size={11} className="shrink-0 text-[#f5b400]" />
                 <span className="text-[11px] text-zinc-300">
                   Llevas{" "}
-                  <span className="text-[#f5b400] font-semibold tabular-nums">{streakWeeks}</span>{" "}
+                  <span className="font-semibold text-[#f5b400] tabular-nums">{streakWeeks}</span>{" "}
                   semana{streakWeeks !== 1 ? "s" : ""} entrenando
                 </span>
               </button>
             )}
           </div>
 
-          <span className="text-[11px] text-zinc-500 hidden sm:block">{userName}</span>
+          <span className="hidden text-[11px] text-zinc-500 sm:block">{userName}</span>
 
-          <div className="w-7 h-7 rounded-full flex items-center justify-center bg-[#f5b400]/10 border border-[#f5b400]/30 shrink-0">
-            <span className="text-[10px] text-[#f5b400] font-semibold">{initials}</span>
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#f5b400]/30 bg-[#f5b400]/10">
+            <span className="text-[10px] font-semibold text-[#f5b400]">{initials}</span>
           </div>
         </div>
       </div>
 
       {/* ── Fila 2: días ─────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-5 px-2 pb-4 gap-1">
+      <div className="grid grid-cols-5 gap-1 px-2 pb-4">
         {week.map((date, i) => {
           const isSel = i === selectedDay;
           const isT = sameDay(date, today);
@@ -241,7 +241,7 @@ export function UserCalendarBanner({
             <button
               key={i}
               onClick={() => onSelectDay(i)}
-              className="flex flex-col items-center gap-1.5 py-1 rounded-2xl transition-all"
+              className="flex flex-col items-center gap-1.5 rounded-2xl py-1 transition-all"
             >
               <span
                 className={clsx(
@@ -299,7 +299,7 @@ export function WeekIndicator({ weekOffset, onWeekChange }: WeekIndicatorProps) 
   const activeDot = weekOffset + 1;
 
   return (
-    <div className="flex items-center justify-center gap-3 py-2 border-b border-[#111] bg-black shrink-0">
+    <div className="flex shrink-0 items-center justify-center gap-3 border-b border-[#111] bg-black py-2">
       {[0, 1, 2].map((dot) => {
         const offset = dot - 1;
         const isActive = dot === activeDot;
@@ -308,7 +308,7 @@ export function WeekIndicator({ weekOffset, onWeekChange }: WeekIndicatorProps) 
           <button
             key={dot}
             onClick={() => onWeekChange(offset)}
-            className="flex flex-col items-center gap-0.5 group"
+            className="group flex flex-col items-center gap-0.5"
           >
             <div
               className={clsx(

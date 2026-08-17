@@ -27,7 +27,6 @@ export function TimeBlockNav({
   onPrev,
   onNext,
 }: TimeBlockNavProps) {
-  const isFull = participantCount >= totalSpots;
   const fillPct = calcFillPct(participantCount, totalSpots);
 
   return (

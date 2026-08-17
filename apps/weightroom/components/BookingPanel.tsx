@@ -38,7 +38,7 @@ export function BookingPanel({
   if (!selectedBlock) {
     return (
       <PanelShell>
-        <p className="text-xs text-zinc-700 text-center py-1">Selecciona un bloque horario</p>
+        <p className="py-1 text-center text-xs text-zinc-700">Selecciona un bloque horario</p>
         <StatusBanner state="inactive" visible />
         <ActionButton
           state="blocked"
@@ -107,7 +107,7 @@ export function BookingPanel({
 
 function PanelShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex-shrink-0 flex flex-col gap-2 px-4 py-4 border-t border-[#111] bg-black">
+    <div className="flex flex-shrink-0 flex-col gap-2 border-t border-[#111] bg-black px-4 py-4">
       {children}
     </div>
   );
@@ -136,7 +136,7 @@ function BlockInfo({
       </span>
 
       <span
-        className="absolute left-1/2 -translate-x-1/2 font-mono tracking-wider text-[#e4e4e7] pointer-events-none"
+        className="pointer-events-none absolute left-1/2 -translate-x-1/2 font-mono tracking-wider text-[#e4e4e7]"
         style={{ fontSize: 18 }}
       >
         {dateLabel}
@@ -205,7 +205,7 @@ function StatusBanner({
       )}
     >
       {state === "warning" ? (
-        <AlertTriangle size={13} className="text-[#f5b400] shrink-0 mt-0.5" />
+        <AlertTriangle size={13} className="mt-0.5 shrink-0 text-[#f5b400]" />
       ) : (
         <div className={bannerDotVariants({ state })} />
       )}
