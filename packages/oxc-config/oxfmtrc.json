@@ -1,6 +1,6 @@
 {
   "ignorePatterns": [],
   "sortTailwindcss": {
-    "stylesheet": "../../apps/student/app/globals.css"
+    "stylesheet": "../../apps/weightroom/app/globals.css"
   }
 }

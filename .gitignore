@@ -41,3 +41,7 @@ yarn-error.log*
 .eslintcache
 .stylelintcache
 .oxlint_cache
+
+# otras
+.dir-locals.el
+.pnpm-store/
