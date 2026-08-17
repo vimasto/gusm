@@ -14,9 +14,7 @@ export function CREATE_SUPABASE_SERVICE_ROLE_CLIENT() {
 
   if (!url || !secretKey) {
     console.error(
-      "[CREATE_SUPABASE_SERVICE_ROLE_CLIENT] missing envs. resolved url is %s and secret key is %s",
-      url,
-      secretKey,
+      "[CREATE_SUPABASE_SERVICE_ROLE_CLIENT] missing required server environment variables.",
     );
 
     throw new Error("[CREATE_SUPABASE_SERVICE_ROLE_CLIENT] missing envs.");
