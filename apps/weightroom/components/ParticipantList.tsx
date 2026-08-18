@@ -1,6 +1,6 @@
 import { clsx } from "clsx";
 
-interface ParticipantListProps {
+type ParticipantListProps = {
   /** strings ya formateados: "Nombre Apellido" —> viene de la query SELECT full_name */
   participants: string[];
   /** capacidad máxima del bloque —> viene de la query de rules/bloques */
@@ -9,7 +9,7 @@ interface ParticipantListProps {
    * FIXME: should be className, not boolean
    */
   faded: boolean;
-}
+};
 
 function initials(fullName: string) {
   const [firstName = "", lastName = ""] = fullName.split(" ");
@@ -31,25 +31,21 @@ export function ParticipantList({ participants, totalSpots, faded }: Participant
           key={i}
           className={clsx(
             "flex items-center gap-3 py-2.5",
-            i < totalSpots - 1 && "border-b border-neutral-900",
+            i < totalSpots - 1 && "border-b border-divider",
           )}
         >
           {/* Spot number */}
-          <span className="w-5 shrink-0 text-right font-mono text-xs text-neutral-500">
-            {i + 1}
-          </span>
+          <span className="w-5 shrink-0 text-right font-mono text-xs text-muted">{i + 1}</span>
 
           {/* Avatar circle */}
           <div
             className={clsx(
               "flex shrink-0 items-center justify-center rounded-full size-7 border",
-              fullName
-                ? "bg-amber-400/7 border-amber-400/10"
-                : "bg-neutral-900/2 border-neutral-900/6",
+              fullName ? "border-accent/10 bg-accent/5" : "border-divider/50 bg-input/20",
             )}
           >
             {fullName && (
-              <span className="text-xs font-semibold text-amber-400 uppercase">
+              <span className="text-xs font-semibold text-accent uppercase">
                 {initials(fullName)}
               </span>
             )}
@@ -59,7 +55,7 @@ export function ParticipantList({ participants, totalSpots, faded }: Participant
           {fullName ? (
             <span className="text-sm text-neutral-300">{fullName}</span>
           ) : (
-            <span className={clsx("text-sm text-amber-400/20")}>— disponible</span>
+            <span className={clsx("text-sm text-accent/20")}>— disponible</span>
           )}
         </div>
       ))}

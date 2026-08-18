@@ -1,18 +1,37 @@
-import { useRef, useEffect, useState, useCallback } from "react";
-import { ArrowLeft, Flame, Dumbbell } from "lucide-react";
+import { useEffect, useRef } from "react";
 import clsx from "clsx";
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers (exported so UserView can reuse them)
-// ─────────────────────────────────────────────────────────────────────────────
+import type { ActiveBooking } from "@/components/ActiveBookingsPanel";
+import { type AppRole, UserTopBar } from "@/components/UserTopBar";
 
 const DAY_LETTERS = ["L", "M", "X", "J", "V"];
 const SWIPE_THRESHOLD = 42;
+const SANTIAGO_TIME_ZONE = "America/Santiago";
+const SANTIAGO_DATE_FORMATTER = new Intl.DateTimeFormat("en-CA", {
+  timeZone: SANTIAGO_TIME_ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
 
 export const MIN_WEEK_OFFSET = -1;
 export const MAX_WEEK_OFFSET = 1;
 
-export function sameDay(a: Date, b: Date): boolean {
+function getDatePart(parts: Intl.DateTimeFormatPart[], type: "day" | "month" | "year"): number {
+  const part = parts.find((candidate) => candidate.type === type);
+  if (!part) throw new Error(`Missing ${type} from formatted date.`);
+  return Number(part.value);
+}
+
+export function getSantiagoToday(): Date {
+  const parts = SANTIAGO_DATE_FORMATTER.formatToParts(new Date());
+  const year = getDatePart(parts, "year");
+  const month = getDatePart(parts, "month");
+  const day = getDatePart(parts, "day");
+
+  return new Date(year, month - 1, day);
+}
+
+export function isSameDay(a: Date, b: Date): boolean {
   return (
     a.getDate() === b.getDate() &&
     a.getMonth() === b.getMonth() &&
@@ -20,278 +39,206 @@ export function sameDay(a: Date, b: Date): boolean {
   );
 }
 
-/** Returns the 5 weekdays (Mon–Fri) for the week at `weekOffset` from today's week. */
 export function getWeekDates(weekOffset: number): Date[] {
-  const today = new Date();
-  const dow = today.getDay();
-  const daysFromMon = dow === 0 ? 6 : dow - 1;
+  const today = getSantiagoToday();
+  const dayOfWeek = today.getDay();
+  const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
   const monday = new Date(today);
-  monday.setDate(today.getDate() - daysFromMon + weekOffset * 7);
-  return Array.from({ length: 5 }, (_, i) => {
-    const d = new Date(monday);
-    d.setDate(monday.getDate() + i);
-    return d;
+  monday.setDate(today.getDate() - daysFromMonday + weekOffset * 7);
+
+  return Array.from({ length: 5 }, (_, index) => {
+    const date = new Date(monday);
+    date.setDate(monday.getDate() + index);
+    return date;
   });
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Props
-// ─────────────────────────────────────────────────────────────────────────────
+export function isBookingDateAvailable(date: Date): boolean {
+  const today = getSantiagoToday();
+  const latestBookingDate = new Date(today);
+  latestBookingDate.setDate(today.getDate() + 7);
 
-interface UserCalendarBannerProps {
-  userName: string;
-  initials: string;
-  streakWeeks: number;
-  onBack: () => void;
-  selectedDay: number;
-  weekOffset: number;
-  onSelectDay: (i: number) => void;
-  onWeekChange: (offset: number) => void;
-  onGoToday: () => void;
+  return date >= today && date <= latestBookingDate;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Banner
-// ─────────────────────────────────────────────────────────────────────────────
+type UserCalendarBannerProps = {
+  userName: string;
+  role: AppRole;
+  streakWeeks: number;
+  selectedDay: number;
+  weekOffset: number;
+  onSelectDay: (index: number) => void;
+  onWeekChange: (offset: number) => void;
+  onGoToday: () => void;
+  onGoProfile: () => void;
+  onGoCheckIn?: () => void;
+  onGoOvercapacity?: () => void;
+  onGoInformation?: () => void;
+  onGoSettings?: () => void;
+  onSignOut: () => void | Promise<void>;
+  activeBookings: ActiveBooking[];
+  onConfirmBooking: (bookingKey: string) => void;
+  onCancelBooking: (bookingKey: string) => void;
+};
+
+type SelectionPillProps = {
+  isActive: boolean;
+};
+
+function SelectionPill({ isActive }: SelectionPillProps) {
+  return (
+    <div
+      className="rounded-full transition-all duration-300"
+      style={{
+        width: isActive ? 20 : 6,
+        height: 5,
+        backgroundColor: isActive ? "var(--color-accent)" : "var(--color-dim)",
+      }}
+    />
+  );
+}
 
 export function UserCalendarBanner({
   userName,
-  initials,
+  role,
   streakWeeks,
-  onBack,
   selectedDay,
   weekOffset,
   onSelectDay,
   onWeekChange,
   onGoToday,
+  onGoProfile,
+  onGoCheckIn,
+  onGoOvercapacity,
+  onGoInformation,
+  onGoSettings,
+  onSignOut,
+  activeBookings,
+  onConfirmBooking,
+  onCancelBooking,
 }: UserCalendarBannerProps) {
-  const today = new Date();
+  const today = getSantiagoToday();
   const week = getWeekDates(weekOffset);
-  const todayInWeek = week.some((d) => sameDay(d, today));
-
-  const start = week[0]!;
-  const end = week[4]!;
-
-  const monthLabel =
-    start.getMonth() === end.getMonth()
-      ? start.toLocaleDateString("es-CL", { month: "long", year: "numeric" })
-      : `${start.toLocaleDateString("es-CL", { month: "short" })} — ${end.toLocaleDateString("es-CL", { month: "short", year: "numeric" })}`;
-
-  // ── Streak popup ─────────────────────────────────────────────────────────
-  const [showStreak, setShowStreak] = useState(false);
-  const streakRef = useRef<HTMLButtonElement>(null);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const openStreak = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (timerRef.current) clearTimeout(timerRef.current);
-    setShowStreak(true);
-    timerRef.current = setTimeout(() => setShowStreak(false), 5000);
-  }, []);
-
-  const closeStreak = useCallback(() => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    setShowStreak(false);
-  }, []);
-
-  useEffect(() => {
-    if (!showStreak) return;
-    const handler = () => closeStreak();
-    document.addEventListener("click", handler);
-    return () => document.removeEventListener("click", handler);
-  }, [showStreak, closeStreak]);
-
-  useEffect(
-    () => () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    },
-    [],
-  );
-
-  // ── Swipe gesture ────────────────────────────────────────────────────────
-  const bannerRef = useRef<HTMLDivElement>(null);
+  const isTodaySelected = isSameDay(week[selectedDay]!, today);
+  const bannerRef = useRef<HTMLElement>(null);
   const startX = useRef<number | null>(null);
 
   useEffect(() => {
-    const el = bannerRef.current;
-    if (!el) return;
+    const element = bannerRef.current;
+    if (!element) return;
 
-    const onStart = (e: TouchEvent | MouseEvent) => {
-      const clientX =
-        "touches" in e ? (e as TouchEvent).touches[0]?.clientX : (e as MouseEvent).clientX;
+    const onStart = (event: TouchEvent | MouseEvent) => {
+      const clientX = "touches" in event ? event.touches[0]?.clientX : event.clientX;
       if (clientX === undefined) return;
       startX.current = clientX;
     };
 
-    const onEnd = (e: TouchEvent | MouseEvent) => {
+    const onEnd = (event: TouchEvent | MouseEvent) => {
       if (startX.current === null) return;
-      const clientX =
-        "changedTouches" in e
-          ? (e as TouchEvent).changedTouches[0]?.clientX
-          : (e as MouseEvent).clientX;
+
+      const clientX = "changedTouches" in event ? event.changedTouches[0]?.clientX : event.clientX;
       if (clientX === undefined) return;
-      const dx = clientX - startX.current;
+
+      const distance = clientX - startX.current;
       startX.current = null;
-      if (Math.abs(dx) <= SWIPE_THRESHOLD) return;
-      const next =
-        dx < 0
+      if (Math.abs(distance) <= SWIPE_THRESHOLD) return;
+
+      const nextOffset =
+        distance < 0
           ? Math.min(weekOffset + 1, MAX_WEEK_OFFSET)
           : Math.max(weekOffset - 1, MIN_WEEK_OFFSET);
-      if (next !== weekOffset) onWeekChange(next);
+
+      if (nextOffset !== weekOffset) onWeekChange(nextOffset);
     };
 
-    el.addEventListener("touchstart", onStart, { passive: true });
-    el.addEventListener("touchend", onEnd);
-    el.addEventListener("mousedown", onStart);
+    element.addEventListener("touchstart", onStart, { passive: true });
+    element.addEventListener("touchend", onEnd);
+    element.addEventListener("mousedown", onStart);
     document.addEventListener("mouseup", onEnd);
+
     return () => {
-      el.removeEventListener("touchstart", onStart);
-      el.removeEventListener("touchend", onEnd);
-      el.removeEventListener("mousedown", onStart);
+      element.removeEventListener("touchstart", onStart);
+      element.removeEventListener("touchend", onEnd);
+      element.removeEventListener("mousedown", onStart);
       document.removeEventListener("mouseup", onEnd);
     };
-  }, [weekOffset, onWeekChange]);
+  }, [onWeekChange, weekOffset]);
 
-  // ─────────────────────────────────────────────────────────────────────────
   return (
-    <div ref={bannerRef} className="sticky top-0 z-20 border-b border-[#111] bg-black select-none">
-      {/* ── Fila 1 ───────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between px-5 pt-5 pb-3">
-        {/* Izquierda: back · dumbbell · mes */}
-        <div className="flex min-w-0 items-center gap-2">
-          <button
-            onClick={onBack}
-            className="flex shrink-0 items-center gap-1 rounded-full border border-zinc-800 px-2 py-0.5 text-zinc-600 transition-transform active:scale-95"
-          >
-            <ArrowLeft size={11} />
-            <span className="text-[9px] leading-none tracking-wide">atrás</span>
-          </button>
+    <header
+      ref={bannerRef}
+      className="sticky top-0 z-20 border-b border-divider bg-surface select-none"
+    >
+      <UserTopBar
+        userName={userName}
+        role={role}
+        streakWeeks={streakWeeks}
+        onGoToday={onGoToday}
+        onGoProfile={onGoProfile}
+        onGoCheckIn={onGoCheckIn}
+        onGoOvercapacity={onGoOvercapacity}
+        onGoInformation={onGoInformation}
+        onGoSettings={onGoSettings}
+        onSignOut={onSignOut}
+        activeBookings={activeBookings}
+        onConfirmBooking={onConfirmBooking}
+        onCancelBooking={onCancelBooking}
+        isTodaySelected={isTodaySelected}
+      />
 
-          <Dumbbell size={13} className="shrink-0 text-[#f5b400]" />
-
-          <span className="truncate text-xs tracking-[0.08em] text-[#52525b] capitalize">
-            {monthLabel}
-          </span>
-        </div>
-
-        {/* Derecha: Hoy · streak · nombre · avatar */}
-        <div className="flex shrink-0 items-center gap-2">
-          <button
-            onClick={onGoToday}
-            className={clsx(
-              "text-xs px-3 py-1 rounded-full transition-all",
-              todayInWeek
-                ? "bg-[#f5b400]/[.12] text-[#f5b400]"
-                : "bg-zinc-900 text-zinc-600 border border-zinc-800",
-            )}
-          >
-            Hoy
-          </button>
-
-          {/* Streak con popup */}
-          <div className="relative">
-            <button
-              ref={streakRef}
-              onClick={openStreak}
-              className="flex items-center gap-0.5 rounded-full border border-[#f5b400]/20 bg-[#f5b400]/[.08] px-1.5 py-0.5 transition-all active:scale-95"
-            >
-              <Flame size={10} className="text-[#f5b400]" />
-              <span className="text-[10px] text-[#f5b400] tabular-nums">{streakWeeks}</span>
-            </button>
-
-            {showStreak && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  closeStreak();
-                }}
-                className={clsx(
-                  "absolute top-full right-0 mt-2 z-50",
-                  "flex items-center gap-1.5 px-3 py-2 rounded-xl",
-                  "bg-zinc-900 border border-[#f5b400]/20 shadow-xl",
-                  "whitespace-nowrap text-left min-w-[180px]",
-                  "animate-in fade-in slide-in-from-top-1 duration-200",
-                )}
-              >
-                <Flame size={11} className="shrink-0 text-[#f5b400]" />
-                <span className="text-[11px] text-zinc-300">
-                  Llevas{" "}
-                  <span className="font-semibold text-[#f5b400] tabular-nums">{streakWeeks}</span>{" "}
-                  semana{streakWeeks !== 1 ? "s" : ""} entrenando
-                </span>
-              </button>
-            )}
-          </div>
-
-          <span className="hidden text-[11px] text-zinc-500 sm:block">{userName}</span>
-
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#f5b400]/30 bg-[#f5b400]/10">
-            <span className="text-[10px] font-semibold text-[#f5b400]">{initials}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Fila 2: días ─────────────────────────────────────────────────── */}
       <div className="grid grid-cols-5 gap-1 px-2 pb-4">
-        {week.map((date, i) => {
-          const isSel = i === selectedDay;
-          const isT = sameDay(date, today);
+        {week.map((date, index) => {
+          const isSelected = index === selectedDay;
+          const isToday = isSameDay(date, today);
+          const isBookingDateAvailableForDate = isBookingDateAvailable(date);
+          const isDateSelectable = weekOffset <= 0 || isBookingDateAvailableForDate;
 
           return (
             <button
-              key={i}
-              onClick={() => onSelectDay(i)}
-              className="flex flex-col items-center gap-1.5 rounded-2xl py-1 transition-all"
+              key={index}
+              type="button"
+              onClick={isDateSelectable ? () => onSelectDay(index) : undefined}
+              disabled={!isDateSelectable}
+              className="flex flex-col items-center gap-1.5 rounded-2xl py-1 transition-all disabled:cursor-not-allowed disabled:opacity-35"
             >
               <span
                 className={clsx(
                   "text-xs font-medium tracking-[0.12em]",
-                  isSel ? "text-white" : "text-[#3f3f46]",
+                  isSelected ? "text-accent" : "text-dim",
                 )}
               >
-                {DAY_LETTERS[i]}
+                {DAY_LETTERS[index]}
               </span>
 
               <div
                 className={clsx(
-                  "w-10 h-10 flex items-center justify-center rounded-full transition-all duration-200",
-                  isSel && "bg-white",
+                  "flex size-10 items-center justify-center rounded-full transition-all duration-200",
+                  isSelected ? "bg-accent shadow-accent" : "bg-input",
                 )}
               >
                 <span
                   className={clsx(
                     "text-sm font-bold",
-                    isSel ? "text-black" : isT ? "text-[#f5b400]" : "text-[#71717a]",
+                    isSelected ? "text-neutral-950" : isToday ? "text-accent" : "text-muted",
                   )}
                 >
                   {date.getDate()}
                 </span>
               </div>
 
-              <div
-                className="rounded-full transition-all duration-300"
-                style={{
-                  width: isSel ? 20 : 6,
-                  height: 5,
-                  backgroundColor: isSel ? "#f5b400" : "#27272a",
-                }}
-              />
+              <SelectionPill isActive={isSelected} />
             </button>
           );
         })}
       </div>
-    </div>
+    </header>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// WeekIndicator
-// ─────────────────────────────────────────────────────────────────────────────
-
-interface WeekIndicatorProps {
+type WeekIndicatorProps = {
   weekOffset: number;
   onWeekChange: (offset: number) => void;
-}
+};
 
 const WEEK_LABELS = ["Sem. anterior", "Esta semana", "Próx. semana"] as const;
 
@@ -299,28 +246,22 @@ export function WeekIndicator({ weekOffset, onWeekChange }: WeekIndicatorProps) 
   const activeDot = weekOffset + 1;
 
   return (
-    <div className="flex shrink-0 items-center justify-center gap-3 border-b border-[#111] bg-black py-2">
+    <div className="flex shrink-0 items-center justify-center gap-3 border-b border-divider bg-surface py-2">
       {[0, 1, 2].map((dot) => {
         const offset = dot - 1;
         const isActive = dot === activeDot;
-
         return (
           <button
             key={dot}
+            type="button"
             onClick={() => onWeekChange(offset)}
-            className="group flex flex-col items-center gap-0.5"
+            className="group flex flex-col items-center gap-0.5 active:scale-95"
           >
-            <div
-              className={clsx(
-                "rounded-full transition-all duration-300",
-                isActive ? "bg-[#f5b400]" : "bg-zinc-800 group-hover:bg-zinc-600",
-              )}
-              style={{ width: isActive ? 20 : 6, height: 5 }}
-            />
+            <SelectionPill isActive={isActive} />
             <span
               className={clsx(
-                "text-[8px] tracking-widest transition-all duration-200",
-                isActive ? "text-[#f5b400]/60" : "text-zinc-800",
+                "text-xs tracking-widest transition-all duration-200",
+                isActive ? "text-accent/60" : "text-dim",
               )}
             >
               {WEEK_LABELS[dot]}

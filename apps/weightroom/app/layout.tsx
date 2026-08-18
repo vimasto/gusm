@@ -10,8 +10,8 @@ const montserrat = Montserrat({
 });
 
 export const metadata: Metadata = {
-  title: "Student",
-  description: "Gusm student",
+  title: "GYMU",
+  description: "Gestión de la Sala de Musculación UTFSM Concepción",
 };
 
 export default function RootLayout({
@@ -20,11 +20,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${montserrat.variable} h-full antialiased`}>
+    <html lang="es" className={`${montserrat.variable} h-full antialiased`}>
       <body
         className={clsx(
           "flex flex-col items-center justify-center scroll-smooth font-sans",
-          "min-h-svh min-w-full bg-neutral-950 text-neutral-100 antialiased",
+          "min-h-svh w-full bg-bg text-neutral-100 antialiased",
         )}
       >
         {children}

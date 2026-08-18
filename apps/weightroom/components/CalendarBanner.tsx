@@ -1,5 +1,5 @@
-import { Dumbbell } from "lucide-react";
-import { clsx } from "clsx";
+import clsx from "clsx";
+import { UserTopBar } from "@/components/UserTopBar";
 
 const DAY_LETTERS = ["L", "M", "X", "J", "V"];
 
@@ -11,13 +11,13 @@ function sameDay(a: Date, b: Date) {
   );
 }
 
-interface CalendarBannerProps {
+type CalendarBannerProps = {
   week: Date[];
   today: Date;
   selectedDay: number;
-  onSelectDay: (i: number) => void;
+  onSelectDay: (index: number) => void;
   onGoToday: () => void;
-}
+};
 
 export function CalendarBanner({
   week,
@@ -26,73 +26,38 @@ export function CalendarBanner({
   onSelectDay,
   onGoToday,
 }: CalendarBannerProps) {
-  const start = week[0]!;
-  const end = week[4]!;
-
-  const monthLabel =
-    start.getMonth() === end.getMonth()
-      ? start.toLocaleDateString("es-CL", { month: "long", year: "numeric" })
-      : `${start.toLocaleDateString("es-CL", { month: "short" })} — ${end.toLocaleDateString("es-CL", { month: "short", year: "numeric" })}`;
-
-  const todayInWeek = week.some((d) => sameDay(d, today));
-
   return (
-    <header className="sticky top-0 z-20 border-b border-neutral-900 bg-black">
-      {/* Month row */}
-      <div className="flex items-center justify-between p-5">
-        <div className="flex items-center gap-2">
-          <Dumbbell className="size-2.5 shrink-0 text-amber-400" />
+    <header className="sticky top-0 z-20 border-b border-divider bg-surface">
+      <UserTopBar onGoToday={onGoToday} isTodaySelected={sameDay(week[selectedDay]!, today)} />
 
-          <span className="text-xs text-neutral-500 capitalize">{monthLabel}</span>
-        </div>
-
-        {todayInWeek && (
-          <button
-            onClick={onGoToday}
-            className="rounded-full bg-neutral-900 px-3 py-1 text-xs text-amber-400"
-          >
-            Hoy
-          </button>
-        )}
-      </div>
-
-      {/* Days */}
       <div className="grid grid-cols-5 gap-1 px-2 pb-4">
-        {week.map((date, i) => {
-          const isSelectedIndex = i === selectedDay;
+        {week.map((date, index) => {
+          const isSelected = index === selectedDay;
           const isToday = sameDay(date, today);
 
           return (
             <button
-              key={i}
-              onClick={() => onSelectDay(i)}
-              className="flex flex-col items-center justify-center gap-1.5"
+              key={date.toISOString()}
+              type="button"
+              onClick={() => onSelectDay(index)}
+              className="flex flex-col items-center justify-center gap-1.5 rounded-2xl py-1 transition-all active:scale-95"
             >
-              {/* letter */}
               <span
-                className={clsx(
-                  "text-xs font-medium",
-                  isSelectedIndex ? "text-white" : "text-neutral-500",
-                )}
+                className={clsx("text-xs font-medium", isSelected ? "text-accent" : "text-dim")}
               >
-                {DAY_LETTERS[i]}
+                {DAY_LETTERS[index]}
               </span>
 
-              {/* circle */}
               <div
                 className={clsx(
-                  "size-10 flex items-center justify-center rounded-full transition-colors duration-200",
-                  isSelectedIndex ? "bg-white" : "bg-neutral-900",
+                  "flex size-10 items-center justify-center rounded-full transition-colors duration-200",
+                  isSelected ? "bg-accent shadow-accent" : "bg-input",
                 )}
               >
                 <span
                   className={clsx(
                     "text-sm font-bold",
-                    isSelectedIndex
-                      ? "text-black"
-                      : isToday
-                        ? "text-amber-400"
-                        : "text-neutral-500",
+                    isSelected ? "text-neutral-950" : isToday ? "text-accent" : "text-muted",
                   )}
                 >
                   {date.getDate()}

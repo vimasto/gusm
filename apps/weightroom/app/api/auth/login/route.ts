@@ -46,10 +46,13 @@ function createErrorResponse(
   return response;
 }
 
-function createSuccessResponse() {
+function createSuccessResponse(termsAcceptanceRequired: boolean) {
   return new NextResponse(null, {
     status: 204,
-    headers: { "Cache-Control": "no-store" },
+    headers: {
+      "Cache-Control": "no-store",
+      "X-GUSM-Terms-Acceptance-Required": termsAcceptanceRequired.toString(),
+    },
   });
 }
 
@@ -83,6 +86,38 @@ function normalizeRut(rut: string) {
   }
 
   return normalizedRut;
+}
+
+function normalizeInstitutionalUsername(username: string) {
+  const normalizedUsername = username.normalize("NFKC").trim().toLocaleLowerCase("es-CL");
+
+  if (
+    normalizedUsername.length < 1 ||
+    normalizedUsername.length > 120 ||
+    /[@\s]/.test(normalizedUsername)
+  ) {
+    throw new Error("[LOGIN] institutional username is invalid.");
+  }
+
+  return normalizedUsername;
+}
+
+function formatNameToken(nameToken: string) {
+  return `${nameToken.charAt(0).toLocaleUpperCase("es-CL")}${nameToken
+    .slice(1)
+    .toLocaleLowerCase("es-CL")}`;
+}
+
+function formatBroadcastName(institutionalName: string) {
+  const nameParts = institutionalName.trim().split(/\s+/);
+  const firstSurname = nameParts.at(0);
+  const firstGivenName = nameParts.at(2);
+
+  if (!firstSurname || !firstGivenName) {
+    return nameParts.map(formatNameToken).join(" ");
+  }
+
+  return `${formatNameToken(firstGivenName)} ${formatNameToken(firstSurname)}`;
 }
 
 function createIdentityValues(rut: string, identityHmacKey: string) {
@@ -209,6 +244,37 @@ async function provisionAppUser(
   return "active" as const;
 }
 
+async function upsertInstitutionalIdentity(userId: string, institutionalUsername: string) {
+  const supabase = CREATE_SUPABASE_SERVICE_ROLE_CLIENT();
+  const { error } = await supabase.rpc("upsert_institutional_identity", {
+    p_institutional_username: institutionalUsername,
+    p_user_id: userId,
+  });
+
+  if (error) {
+    throw new Error(`[LOGIN] could not upsert institutional identity: ${error.code}`);
+  }
+}
+
+async function requiresTermsAcceptance(userId: string) {
+  const supabase = CREATE_SUPABASE_SERVICE_ROLE_CLIENT();
+  const [{ data: appUser, error: appUserError }, { data: systemSettings, error: settingsError }] =
+    await Promise.all([
+      supabase.from("app_user").select("accepted_terms_version").eq("user_id", userId).single(),
+      supabase
+        .from("system_settings")
+        .select("current_terms_version")
+        .eq("singleton", true)
+        .single(),
+    ]);
+
+  if (appUserError || settingsError || !appUser || !systemSettings) {
+    throw new Error("[LOGIN] could not determine terms acceptance.");
+  }
+
+  return appUser.accepted_terms_version !== systemSettings.current_terms_version;
+}
+
 export async function POST(request: NextRequest) {
   let payload: unknown;
 
@@ -273,7 +339,7 @@ export async function POST(request: NextRequest) {
     const appUserState = await provisionAppUser(
       identityValues.databaseValue,
       generatedLink.user.id,
-      sansanoResult.profile.nombre,
+      formatBroadcastName(sansanoResult.profile.nombre),
       existingAppUser,
     );
 
@@ -281,7 +347,13 @@ export async function POST(request: NextRequest) {
       return createErrorResponse(403, "account_disabled");
     }
 
-    const response = createSuccessResponse();
+    await upsertInstitutionalIdentity(
+      generatedLink.user.id,
+      normalizeInstitutionalUsername(parsedLoginRequest.data.username),
+    );
+
+    const termsAcceptanceRequired = await requiresTermsAcceptance(generatedLink.user.id);
+    const response = createSuccessResponse(termsAcceptanceRequired);
     const sessionClient = CREATE_SUPABASE_SERVER_CLIENT({
       getAll() {
         return request.cookies.getAll();
@@ -303,8 +375,8 @@ export async function POST(request: NextRequest) {
     }
 
     return response;
-  } catch {
-    console.error("[LOGIN] could not provision an authenticated application user.");
+  } catch (error) {
+    console.error("[LOGIN] could not provision an authenticated application user.", error);
     return createErrorResponse(503, "auth_upstream_unavailable");
   }
 }

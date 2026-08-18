@@ -1,36 +1,38 @@
-import { X, Check, CheckCheck, AlertTriangle, type LucideIcon } from "lucide-react";
+import { AlertTriangle, Check, CheckCheck, type LucideIcon, X } from "lucide-react";
 import clsx from "clsx";
 import { cva } from "class-variance-authority";
-import { accentByOccupancy, fillPct as calcFillPct } from "@/lib/occupancy";
+import { accentTextClassByOccupancy, fillPct as calcFillPct } from "@/lib/occupancy";
 import type { UserBlock } from "@/components/BlockCard";
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Types
-// ─────────────────────────────────────────────────────────────────────────────
-
-type ActionState = "inscribe" | "cancel" | "confirm" | "full" | "blocked";
+type ActionState =
+  | "inscribe"
+  | "booking_closed"
+  | "cancel"
+  | "cancel_locked"
+  | "confirm"
+  | "full"
+  | "blocked";
 type BannerState = "active" | "inactive" | "warning";
 
-interface BookingPanelProps {
+type BookingPanelProps = {
   selectedBlock: UserBlock | null;
   totalSpots: number;
   userBookedBlock: UserBlock | null;
-  /** Fecha del día seleccionado en el calendario */
   selectedDate: Date;
+  isBookingAvailable: boolean;
+  isCancellationLocked: boolean;
   onInscribe: () => void;
   onCancel: () => void;
   onConfirm: () => void;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// BookingPanel
-// ─────────────────────────────────────────────────────────────────────────────
+};
 
 export function BookingPanel({
   selectedBlock,
   totalSpots,
   userBookedBlock,
   selectedDate,
+  isBookingAvailable,
+  isCancellationLocked,
   onInscribe,
   onCancel,
   onConfirm,
@@ -38,14 +40,19 @@ export function BookingPanel({
   if (!selectedBlock) {
     return (
       <PanelShell>
-        <p className="py-1 text-center text-xs text-zinc-700">Selecciona un bloque horario</p>
-        <StatusBanner state="inactive" visible />
-        <ActionButton
-          state="blocked"
-          onInscribe={onInscribe}
-          onCancel={onCancel}
-          onConfirm={onConfirm}
-        />
+        <p className="text-center text-sm text-dim">Selecciona un bloque horario</p>
+        <div className="flex-1" />
+        <div className="mt-2">
+          <StatusBanner state="inactive" />
+        </div>
+        <div className="mt-2">
+          <ActionButton
+            state="blocked"
+            onInscribe={onInscribe}
+            onCancel={onCancel}
+            onConfirm={onConfirm}
+          />
+        </div>
       </PanelShell>
     );
   }
@@ -58,11 +65,13 @@ export function BookingPanel({
 
   let action: ActionState;
   if (isOwnBlock) {
-    action = isConfirming ? "confirm" : "cancel";
+    action = isConfirming ? "confirm" : isCancellationLocked ? "cancel_locked" : "cancel";
   } else if (hasOtherBooking) {
     action = "blocked";
   } else if (isFull) {
     action = "full";
+  } else if (!isBookingAvailable) {
+    action = "booking_closed";
   } else {
     action = "inscribe";
   }
@@ -76,7 +85,7 @@ export function BookingPanel({
     bannerState = "inactive";
   }
 
-  const bannerVisible = !isFull || isOwnBlock;
+  const showStatusBanner = !isFull || isOwnBlock;
 
   return (
     <PanelShell>
@@ -86,63 +95,58 @@ export function BookingPanel({
         fillPct={fillPct}
         date={selectedDate}
       />
-      <StatusBanner
-        state={bannerState}
-        visible={bannerVisible}
-        bookedTimeRange={userBookedBlock?.timeRange}
-      />
-      <ActionButton
-        state={action}
-        onInscribe={onInscribe}
-        onCancel={onCancel}
-        onConfirm={onConfirm}
-      />
+      <div className="flex-1" />
+      {showStatusBanner && (
+        <div className="mt-2">
+          <StatusBanner state={bannerState} bookedTimeRange={userBookedBlock?.timeRange} />
+        </div>
+      )}
+      <div className="mt-2">
+        <ActionButton
+          state={action}
+          onInscribe={onInscribe}
+          onCancel={onCancel}
+          onConfirm={onConfirm}
+        />
+      </div>
     </PanelShell>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Sub-componentes
-// ─────────────────────────────────────────────────────────────────────────────
-
 function PanelShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex flex-shrink-0 flex-col gap-2 border-t border-[#111] bg-black px-4 py-4">
+    <div className="flex h-45 min-w-0 flex-shrink-0 flex-col border-t border-divider bg-surface px-4 py-4">
       {children}
     </div>
   );
 }
 
-function BlockInfo({
-  block,
-  totalSpots,
-  fillPct,
-  date,
-}: {
+type BlockInfoProps = {
   block: UserBlock;
   totalSpots: number;
   fillPct: number;
   date: Date;
-}) {
+};
+
+const WEEKDAY_ABBREVIATIONS = ["dom.", "lun.", "mar.", "mié.", "jue.", "vie.", "sáb."];
+
+function getBlockDateLabel(date: Date): string {
+  const monthLabel = date.toLocaleDateString("es-CL", { month: "short" }).replace(".", "");
+  return `${WEEKDAY_ABBREVIATIONS[date.getDay()]} ${date.getDate()} ${monthLabel}`;
+}
+
+function BlockInfo({ block, totalSpots, fillPct, date }: BlockInfoProps) {
   const spotsLeft = totalSpots - block.taken;
-  const dayName = date.toLocaleDateString("es-CL", { weekday: "long" });
-  const dayNum = date.getDate();
-  const dateLabel = `${dayName.charAt(0).toUpperCase() + dayName.slice(1)} ${dayNum}`;
+  const compactTimeRange = block.timeRange.replace(" · ", "·");
+  const blockLabel = `${compactTimeRange}, ${getBlockDateLabel(date)}`;
 
   return (
-    <div className="relative flex items-center justify-between">
-      <span className="font-mono tracking-wider text-[#e4e4e7]" style={{ fontSize: 18 }}>
-        {block.timeRange}
+    <div className="flex items-start justify-between gap-3">
+      <span className="min-w-0 truncate font-mono text-sm tracking-wide text-neutral-300">
+        {blockLabel}
       </span>
 
-      <span
-        className="pointer-events-none absolute left-1/2 -translate-x-1/2 font-mono tracking-wider text-[#e4e4e7]"
-        style={{ fontSize: 18 }}
-      >
-        {dateLabel}
-      </span>
-
-      <span style={{ fontSize: 12, color: accentByOccupancy(fillPct) }}>
+      <span className={clsx("shrink-0 text-sm", accentTextClassByOccupancy(fillPct))}>
         {spotsLeft > 0
           ? `${spotsLeft} cupo${spotsLeft !== 1 ? "s" : ""} libre${spotsLeft !== 1 ? "s" : ""}`
           : "Sin cupos"}
@@ -151,72 +155,60 @@ function BlockInfo({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// StatusBanner
-// ─────────────────────────────────────────────────────────────────────────────
-
 const bannerContainerVariants = cva(
-  "flex items-center gap-2 w-full px-3 py-2 rounded-lg transition-all duration-300",
+  "flex w-full min-w-0 items-center gap-2 rounded-lg px-3 py-2 transition-all duration-300",
   {
     variants: {
       state: {
-        active: "bg-[#f5b400]/[.10] border border-[#f5b400]/35",
-        inactive: "bg-[#0a0a0a]       border border-[#1a1a1a]",
-        warning: "bg-[#f5b400]/[.06] border border-[#f5b400]/20",
+        active: "border border-accent/35 bg-accent/10",
+        inactive: "border border-divider bg-input",
+        warning: "border border-accent/20 bg-accent/5",
       },
     },
   },
 );
 
-const bannerDotVariants = cva("w-1.5 h-1.5 rounded-full shrink-0 transition-all duration-300", {
+const bannerDotVariants = cva("size-1.5 shrink-0 rounded-full transition-all duration-300", {
   variants: {
     state: {
-      active: "bg-[#f5b400]",
-      inactive: "bg-zinc-800",
+      active: "bg-accent",
+      inactive: "bg-dim",
       warning: "",
     },
   },
 });
 
-const bannerTextVariants = cva("text-[11px] transition-colors duration-300", {
+const bannerTextVariants = cva("text-sm transition-colors duration-300", {
   variants: {
     state: {
-      active: "text-zinc-300",
-      inactive: "text-zinc-700",
-      warning: "text-zinc-400",
+      active: "text-neutral-300",
+      inactive: "text-dim",
+      warning: "text-muted",
     },
   },
 });
 
-function StatusBanner({
-  state,
-  visible = true,
-  bookedTimeRange,
-}: {
+type StatusBannerProps = {
   state: BannerState;
-  visible?: boolean;
   bookedTimeRange?: string;
-}) {
+};
+
+function StatusBanner({ state, bookedTimeRange }: StatusBannerProps) {
   return (
-    <div
-      className={clsx(
-        bannerContainerVariants({ state }),
-        !visible && "opacity-0 pointer-events-none",
-      )}
-    >
+    <div className={bannerContainerVariants({ state })}>
       {state === "warning" ? (
-        <AlertTriangle size={13} className="mt-0.5 shrink-0 text-[#f5b400]" />
+        <AlertTriangle className="mt-0.5 size-4 shrink-0 text-accent" />
       ) : (
         <div className={bannerDotVariants({ state })} />
       )}
 
-      <span className={bannerTextVariants({ state })}>
-        {state === "active" && "La ventana de confirmación para este bloque está activa"}
-        {state === "inactive" && "La ventana de confirmación se abrirá 2 h antes del bloque"}
+      <span className={clsx("min-w-0 break-words", bannerTextVariants({ state }))}>
+        {state === "active" && "La ventana de confirmación cierra 1 h antes del bloque"}
+        {state === "inactive" && "La confirmación abre 4 h antes y cierra 1 h antes del bloque"}
         {state === "warning" && (
           <>
-            Ya tienes reserva en <span className="text-[#f5b400]">{bookedTimeRange}</span>. Cancela
-            esa reserva para inscribirte aquí.
+            Tienes una reserva en <span className="text-accent">{bookedTimeRange}</span>. Cancélala
+            para inscribirte aquí.
           </>
         )}
       </span>
@@ -224,24 +216,18 @@ function StatusBanner({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ActionButton
-// ─────────────────────────────────────────────────────────────────────────────
-
 const actionButtonVariants = cva(
-  "w-full py-2.5 rounded-xl flex items-center justify-center gap-2 text-[13px] transition-all duration-200 active:scale-[0.98]",
+  "flex w-full items-center justify-center gap-2 rounded-xl py-3 text-base transition-all duration-200 active:scale-[0.98]",
   {
     variants: {
       intent: {
-        inscribe:
-          "border border-[#f5b400]/30 text-[#f5b400] bg-[#f5b400]/[.05] hover:bg-[#f5b400]/[.09]",
-        cancel:
-          "border border-red-500/30   text-red-500   bg-red-500/[.05]   hover:bg-red-500/[.09]",
-        confirm:
-          "border border-[#f5b400]/60 text-[#f5b400] bg-[#f5b400]/[.12] hover:bg-[#f5b400]/[.18]",
-        full: "border border-zinc-900     text-zinc-700  bg-transparent      cursor-not-allowed",
-        blocked:
-          "border border-[#f5b400]/30 text-[#f5b400] bg-[#f5b400]/[.05] cursor-not-allowed opacity-40",
+        inscribe: "border border-accent/30 bg-accent/5 text-accent hover:bg-accent/10",
+        booking_closed: "cursor-not-allowed border border-divider bg-transparent text-dim",
+        cancel: "border border-red-500/30 bg-red-500/5 text-red-500 hover:bg-red-500/10",
+        cancel_locked: "cursor-not-allowed border border-red-500/20 bg-red-500/5 text-red-500/60",
+        confirm: "border border-accent/60 bg-accent/15 text-accent hover:bg-accent/20",
+        full: "cursor-not-allowed border border-divider bg-transparent text-dim",
+        blocked: "cursor-not-allowed border border-accent/30 bg-accent/5 text-accent opacity-40",
       },
     },
   },
@@ -249,41 +235,41 @@ const actionButtonVariants = cva(
 
 const ACTION_META: Record<ActionState, { icon: LucideIcon; label: string; isDisabled: boolean }> = {
   inscribe: { icon: Check, label: "Inscribirse", isDisabled: false },
+  booking_closed: { icon: X, label: "Inscripciones cerradas", isDisabled: true },
   cancel: { icon: X, label: "Cancelar reserva", isDisabled: false },
+  cancel_locked: { icon: X, label: "Cancelación bloqueada", isDisabled: true },
   confirm: { icon: CheckCheck, label: "Confirmar asistencia", isDisabled: false },
   full: { icon: X, label: "Sin cupos disponibles", isDisabled: true },
   blocked: { icon: Check, label: "Inscribirse", isDisabled: true },
 };
 
-function ActionButton({
-  state,
-  onInscribe,
-  onCancel,
-  onConfirm,
-}: {
+type ActionButtonProps = {
   state: ActionState;
   onInscribe: () => void;
   onCancel: () => void;
   onConfirm: () => void;
-}) {
+};
+
+function ActionButton({ state, onInscribe, onCancel, onConfirm }: ActionButtonProps) {
   const { icon: Icon, label, isDisabled } = ACTION_META[state];
 
-  const handler =
-    state === "inscribe"
-      ? onInscribe
-      : state === "cancel"
-        ? onCancel
-        : state === "confirm"
-          ? onConfirm
-          : undefined;
+  let handler: (() => void) | undefined;
+  if (state === "inscribe") {
+    handler = onInscribe;
+  } else if (state === "cancel") {
+    handler = onCancel;
+  } else if (state === "confirm") {
+    handler = onConfirm;
+  }
 
   return (
     <button
+      type="button"
       onClick={handler}
       disabled={isDisabled}
       className={actionButtonVariants({ intent: state })}
     >
-      <Icon size={14} />
+      <Icon className="size-4" />
       {label}
     </button>
   );

@@ -234,10 +234,10 @@ export default function ReadonlyView() {
   if (!currentBlock) return null;
 
   return (
-    <div className="flex h-svh w-full justify-center bg-neutral-950">
+    <div className="flex h-svh w-full justify-center bg-bg">
       <div
         ref={containerRef}
-        className="relative flex h-svh w-full max-w-[520px] flex-col overflow-hidden bg-black select-none"
+        className="relative flex h-svh gusm-app-shell flex-col overflow-hidden select-none"
       >
         {/* Bloque fijo: banner + navegador horario  */}
         <div className="shrink-0">
@@ -276,21 +276,21 @@ export default function ReadonlyView() {
         </div>
 
         {/* block dots indicator  */}
-        <div className="flex items-center justify-center gap-1.5 border-t border-neutral-900 py-3">
+        <div className="flex items-center justify-center gap-1.5 border-t border-divider py-3">
           {MOCK_BLOCKS.map((_, i) => (
             <button
               key={i}
               onClick={() => withFade(() => setBlockIdx(i))}
               className={clsx(
                 "rounded-full transition-all duration-200 h-1.5",
-                i === blockIdx ? "w-5 bg-amber-400" : "w-1.5 bg-neutral-900",
+                i === blockIdx ? "w-5 bg-accent" : "w-1.5 bg-dim",
               )}
             />
           ))}
         </div>
 
         {/* swipe hint */}
-        <div className="pb-5 text-center text-xs text-neutral-500">
+        <div className="pb-5 text-center text-xs text-muted">
           desliza para cambiar día &nbsp;·&nbsp; ↕ cambiar bloque horario
         </div>
 
@@ -298,7 +298,7 @@ export default function ReadonlyView() {
         {/* todo : actualizar ruta cuando apps/usr este listo */}
         <Link
           href="http://192.168.1.10:3001/"
-          className="absolute right-4 bottom-6 flex items-center gap-2 rounded-full bg-amber-400 px-4 py-2.5 text-sm font-bold text-black shadow-md transition-all active:scale-95"
+          className="absolute right-4 bottom-6 flex items-center gap-2 rounded-full bg-accent px-4 py-2.5 text-sm font-bold text-neutral-950 shadow-md transition-all active:scale-95"
         >
           Mi reserva
         </Link>
