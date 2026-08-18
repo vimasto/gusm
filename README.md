@@ -1,6 +1,6 @@
-# gusm
+# GYMU
 
-PWA única para gestión y reserva del gimnasio UTFSM Concepción.
+PWA única para gestión y reserva de la Sala de Musculación UTFSM Concepción.
 
 ## Desarrollo
 
@@ -11,7 +11,7 @@ pnpm install
 pnpm exec turbo dev --filter=@gusm/weightroom
 ```
 
-La aplicación vive en `apps/weightroom` y usa las rutas `/login`, `/reserva` y `/en-vivo`. Las antiguas aplicaciones `readonly`, `backoffice` y `booking` fueron consolidadas como route groups de `weightroom`.
+La aplicación vive en `apps/weightroom` y usa las rutas `/login`, `/reserva`, `/en-vivo`, `/perfil`, `/qr` y `/qr/escanear`. Las antiguas aplicaciones `readonly`, `backoffice` y `booking` fueron consolidadas como route groups de `weightroom`.
 
 ## Variables de entorno
 
@@ -49,3 +49,18 @@ pnpm db:types
 Las migraciones se crean exclusivamente por CLI y, una vez aplicadas al proyecto compartido, no se modifican. Para una corrección se agrega una nueva migración.
 
 Las reglas de producto, seguridad, repositorio y estilo están en [AGENTS.md](AGENTS.md).
+
+## Estación QR de asistencia
+
+`/qr` muestra al usuario un token opaco de un uso, asociado al bloque vigente y válido
+solo durante sus primeros 15 minutos. `/qr/escanear` debe quedar abierto en el computador de
+la sala con una sesión de `gym_staff` o `admin`.
+
+El escáner Zebra se configura como teclado USB (HID Keyboard) con sufijo Enter. No requiere
+cámara, Bluetooth, Web Serial ni SDK del dispositivo. El control de permisos y el consumo de
+un solo uso ocurren en el backend, no en el navegador.
+
+## Pendientes de producto
+
+- Perfil: permitir compartir en redes un sticker de imagen con calendario mensual de asistencias y racha. La implementación debe capturar o componer solo datos ya visibles al usuario; no usar cámara ni subir imágenes hasta definir el flujo nativo.
+- Términos: la versión vigente es la `2`. Al actualizar el texto institucional de `/terminos`, incrementar `system_settings.current_terms_version` en la misma entrega.

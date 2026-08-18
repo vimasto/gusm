@@ -1,37 +1,43 @@
-/**
- * @duplicated apps/user/src/lib/occupancy.ts
- *       mover a packages/utils cuando se cree el package compartido
- *       require: turbo.json, pnpm-workspace.yaml, tsconfig de readonly y user.
- *
- * Sistema de color por ocupación.
- *
- * Lógica: intensidad INVERSA al llenado.
- * Más cupos disponibles -> más brillo -< guía indirecta al usuario.
- * A partir del ~67 % empieza a atenuarse; lleno = muy apagado.
- *
- * Umbrales (% de ocupación):
- *   < 67 %  → plena intensidad  (#F5B400)
- *   67–80 % → leve fade         (0.78)
- *   80–93 % → fade moderado     (0.58)
- *   93–99 % → claramente opaco  (0.40)
- *   100 %   → muted             (0.28)
- */
-export const ACCENT = "#F5B400";
 const STEPS = [
-  { threshold: 100, alpha: 0.28 },
-  { threshold: 93, alpha: 0.4 },
-  { threshold: 80, alpha: 0.58 },
-  { threshold: 67, alpha: 0.78 },
+  { threshold: 100, opacity: 0.3 },
+  { threshold: 93, opacity: 0.4 },
+  { threshold: 80, opacity: 0.6 },
+  { threshold: 67, opacity: 0.8 },
 ] as const;
-/** Devuelve `rgba(245,180,0, α)` según % de ocupación. α = 1 cuando pct < 67. */
-export function accentByOccupancy(pct: number): string {
+
+function getOccupancyOpacity(pct: number): number {
   const clamped = Math.min(pct, 100);
-  for (const { threshold, alpha } of STEPS) {
-    if (clamped >= threshold) return `rgba(245,180,0,${alpha})`;
+
+  for (const { threshold, opacity } of STEPS) {
+    if (clamped >= threshold) return opacity;
   }
-  return ACCENT; // < 67 % -> plena intensidad
+
+  return 1;
 }
-/** Calcula el porcentaje de ocupación (0–100, clampeado). */
+
+/** Compatibilidad temporal para los componentes de ocupación aún no migrados. */
+export function accentByOccupancy(pct: number): string {
+  return `rgb(245 180 0 / ${getOccupancyOpacity(pct)})`;
+}
+
+export function accentTextClassByOccupancy(pct: number): string {
+  const opacity = getOccupancyOpacity(pct);
+  if (opacity === 1) return "text-accent";
+  if (opacity >= 0.8) return "text-accent/80";
+  if (opacity >= 0.6) return "text-accent/60";
+  if (opacity >= 0.4) return "text-accent/40";
+  return "text-accent/30";
+}
+
+export function accentBackgroundClassByOccupancy(pct: number): string {
+  const opacity = getOccupancyOpacity(pct);
+  if (opacity === 1) return "bg-accent";
+  if (opacity >= 0.8) return "bg-accent/80";
+  if (opacity >= 0.6) return "bg-accent/60";
+  if (opacity >= 0.4) return "bg-accent/40";
+  return "bg-accent/30";
+}
+
 export function fillPct(taken: number, totalSpots: number): number {
   return Math.min((taken / totalSpots) * 100, 100);
 }

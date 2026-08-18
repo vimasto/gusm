@@ -2,7 +2,7 @@ import { ChevronUp, ChevronDown, Users } from "lucide-react";
 import { accentByOccupancy, fillPct as calcFillPct } from "@/lib/occupancy";
 import clsx from "clsx";
 
-interface TimeBlockNavProps {
+type TimeBlockNavProps = {
   /** "HH:MM – HH:MM" :viene de la query del bloque actual */
   timeRange: string;
   /** Posición del bloque en el día : viene de la query de bloques del día */
@@ -15,7 +15,7 @@ interface TimeBlockNavProps {
   hasNext: boolean;
   onPrev: () => void;
   onNext: () => void;
-}
+};
 
 export function TimeBlockNav({
   timeRange,
@@ -33,7 +33,7 @@ export function TimeBlockNav({
     <>
       <div
         className={clsx(
-          "flex items-center justify-between px-5 py-3 border-b border-neutral-900 bg-black",
+          "flex items-center justify-between border-b border-divider bg-surface px-5 py-3",
         )}
       >
         {/* Up arrow + block counter */}
@@ -42,27 +42,29 @@ export function TimeBlockNav({
             onClick={onPrev}
             disabled={!hasPrev}
             className={clsx(
-              "flex size-9 items-center justify-center rounded-full transition-colors border border-amber-400 text-amber-400",
+              "flex size-9 items-center justify-center rounded-full border border-accent text-accent transition-colors",
               "disabled:opacity-20",
             )}
           >
             <ChevronUp className="size-4" />
           </button>
 
-          <span className="text-center text-xs text-neutral-500">
+          <span className="text-center text-xs text-muted">
             {blockPosition.current}/{blockPosition.total}
           </span>
         </div>
 
         {/* time range */}
         <div className="flex flex-col items-center gap-1">
-          <div className="font-mono text-2xl font-bold tracking-widest text-white">{timeRange}</div>
+          <div className="font-mono text-2xl font-bold tracking-widest text-neutral-100">
+            {timeRange}
+          </div>
 
           <div className="flex items-center justify-center gap-1.5">
-            <Users className="size-3 text-amber-400/35" />
+            <Users className="size-3 text-accent/35" />
 
-            <span className="text-xs text-neutral-500">
-              <span className="text-amber-400">{participantCount}</span> inscritos de {totalSpots}
+            <span className="text-xs text-muted">
+              <span className="text-accent">{participantCount}</span> inscritos de {totalSpots}
             </span>
           </div>
         </div>
@@ -73,18 +75,18 @@ export function TimeBlockNav({
             onClick={onNext}
             disabled={!hasNext}
             className={clsx(
-              "flex size-9 items-center justify-center rounded-full transition-colors border border-amber-400 text-amber-400",
+              "flex size-9 items-center justify-center rounded-full border border-accent text-accent transition-colors",
               "disabled:opacity-20",
             )}
           >
             <ChevronDown className="size-4" />
           </button>
-          <span className="text-xs text-neutral-500">bloque</span>
+          <span className="text-xs text-muted">bloque</span>
         </div>
       </div>
 
       {/* occupancy bar */}
-      <div className="h-0.5" style={{ background: "#0f0f0f" }}>
+      <div className="h-0.5 bg-input">
         <div
           className="h-full transition-all duration-500"
           style={{

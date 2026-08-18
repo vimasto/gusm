@@ -11,7 +11,7 @@ export function EmailDomainSelect({ className, domains, hasError = false, ...pro
     <select
       {...props}
       className={clsx(
-        "gusm-input-primary min-w-31 rounded-l-none border-l-0 px-3 text-sm text-neutral-400",
+        "gusm-input-primary min-w-44 rounded-l-none border-l-0 px-3 text-sm text-muted",
         hasError && "border-rose-700/60 focus-visible:border-rose-700/60",
         className,
       )}

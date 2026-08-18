@@ -1,127 +1,121 @@
 import { Check, Flame } from "lucide-react";
 import clsx from "clsx";
-import { accentByOccupancy, fillPct as calcFillPct } from "@/lib/occupancy";
+import {
+  accentBackgroundClassByOccupancy,
+  accentTextClassByOccupancy,
+  fillPct as calcFillPct,
+} from "@/lib/occupancy";
 
 export type UserBookingStatus = "none" | "inscribed" | "confirming" | "confirmed";
 
-export interface UserBlock {
+export type UserBlock = {
   id: number;
-  /** "HH:MM · HH:MM" — formateado para display */
   timeRange: string;
-  startHour: number;
-  startMin: number;
-  /** TODO: COUNT(*) FROM bookings WHERE block_id = ? AND day = ? */
   taken: number;
-  /** TODO: derivado de SELECT status FROM bookings WHERE user_id = ? AND block_id = ? AND day = ? */
   userStatus: UserBookingStatus;
-}
+};
 
-interface BlockCardProps {
+type BlockCardProps = {
   block: UserBlock;
-  /** TODO: SELECT capacity FROM gym_rules LIMIT 1 */
   totalSpots: number;
   isSelected: boolean;
+  isBookingDateAvailable: boolean;
   onSelect: () => void;
+};
+
+function getCardSurfaceClass(isUserBlock: boolean, isSelected: boolean, fillPct: number) {
+  if (isUserBlock) return "border-accent/55 bg-accent/5";
+  if (isSelected) return "border-accent/30 bg-input";
+  if (fillPct < 67) return "border-accent/20";
+  if (fillPct < 80) return "border-accent/15";
+  if (fillPct < 93) return "border-accent/10";
+  return "border-accent/5";
 }
 
-export function BlockCard({ block, totalSpots, isSelected, onSelect }: BlockCardProps) {
+function getTimeTextClass(isUserBlock: boolean, isSelected: boolean) {
+  if (isUserBlock) return "text-neutral-100";
+  if (isSelected) return "text-neutral-300";
+  return "text-muted";
+}
+
+export function BlockCard({
+  block,
+  totalSpots,
+  isSelected,
+  isBookingDateAvailable,
+  onSelect,
+}: BlockCardProps) {
   const fillPct = calcFillPct(block.taken, totalSpots);
   const isFull = block.taken >= totalSpots;
   const isUserBlock = block.userStatus !== "none";
-  const isLocked = isFull && !isUserBlock;
-
-  const borderColor = isUserBlock
-    ? "rgba(245,180,0,0.55)"
-    : isSelected
-      ? "rgba(245,180,0,0.30)"
-      : fillPct < 67
-        ? "rgba(245,180,0,0.22)"
-        : fillPct < 80
-          ? "rgba(245,180,0,0.14)"
-          : fillPct < 93
-            ? "rgba(245,180,0,0.09)"
-            : "rgba(245,180,0,0.05)";
-
-  const bgColor = isUserBlock ? "rgba(245,180,0,0.04)" : isSelected ? "#0a0a0a" : "transparent";
+  const isDateLocked = !isBookingDateAvailable;
+  const isFullLocked = isFull && !isUserBlock;
+  const isLocked = isDateLocked || isFullLocked;
 
   return (
     <button
+      type="button"
       onClick={isLocked ? undefined : onSelect}
       disabled={isLocked}
       className={clsx(
-        "w-full text-left transition-all duration-150",
-        isLocked
-          ? "opacity-35 cursor-not-allowed pointer-events-none"
-          : "active:scale-[0.99] cursor-pointer",
+        "gusm-control-height w-full rounded-xl border px-3.5 py-3 text-left transition-all duration-150",
+        getCardSurfaceClass(isUserBlock, isSelected, fillPct),
+        isFullLocked && "pointer-events-none cursor-not-allowed opacity-35",
+        isDateLocked && "pointer-events-none cursor-not-allowed",
+        !isLocked && "cursor-pointer active:scale-[0.99]",
       )}
-      style={{
-        padding: "10px 14px 0 14px",
-        border: `1px solid ${borderColor}`,
-        borderRadius: 12,
-        background: bgColor,
-      }}
     >
-      {/* ── Fila superior: hora + badge + count ─────────── */}
       <div className="mb-2 flex items-center justify-between">
         <span
           className={clsx(
-            "font-mono tracking-wider",
-            isUserBlock ? "text-white" : isSelected ? "text-[#e4e4e7]" : "text-zinc-500",
+            "font-mono text-base tracking-wider",
+            getTimeTextClass(isUserBlock, isSelected),
           )}
-          style={{ fontSize: 15 }}
         >
           {block.timeRange}
         </span>
 
         <div className="flex items-center gap-2">
           {block.userStatus === "confirmed" && (
-            <div className="flex items-center gap-1 rounded-full border border-[#f5b400]/25 bg-[#f5b400]/[.12] px-2 py-0.5">
-              <Check size={9} className="text-[#f5b400]" />
-              <span className="text-[9px] tracking-widest text-[#f5b400]">CONFIRMADO</span>
+            <div className="flex items-center gap-1 rounded-full border border-accent/25 bg-accent/10 px-2 py-0.5">
+              <Check className="size-3 text-accent" />
+              <span className="text-xs tracking-widest text-accent">CONFIRMADO</span>
             </div>
           )}
 
           {block.userStatus === "confirming" && (
-            <div className="flex items-center gap-1 rounded-full border border-[#f5b400]/40 bg-[#f5b400]/[.15] px-2 py-0.5">
-              <Flame size={9} className="text-[#f5b400]" />
-              <span className="text-[9px] tracking-widest text-[#f5b400]">CONFIRMAR</span>
+            <div className="flex items-center gap-1 rounded-full border border-accent/40 bg-accent/15 px-2 py-0.5">
+              <Flame className="size-3 text-accent" />
+              <span className="text-xs tracking-widest text-accent">CONFIRMAR</span>
             </div>
           )}
 
           {block.userStatus === "inscribed" && (
-            <div className="flex items-center gap-1 rounded-full border border-[#f5b400]/20 bg-[#f5b400]/[.08] px-2 py-0.5">
-              <span className="text-[9px] tracking-widest text-[#f5b400]">TU RESERVA</span>
+            <div className="flex items-center gap-1 rounded-full border border-accent/20 bg-accent/10 px-2 py-0.5">
+              <span className="text-xs tracking-widest text-accent">TU RESERVA</span>
             </div>
           )}
 
           {isFull && !isUserBlock && (
-            <span className="rounded-full border border-[#f5b400]/20 bg-[#f5b400]/[.08] px-2 py-0.5 text-[9px] tracking-widest text-[#f5b400]">
+            <span className="rounded-full border border-accent/20 bg-accent/10 px-2 py-0.5 text-xs tracking-widest text-accent">
               LLENO
             </span>
           )}
 
-          <span
-            className="tabular-nums"
-            style={{ fontSize: 12, color: accentByOccupancy(fillPct) }}
-          >
+          <span className={clsx("text-sm tabular-nums", accentTextClassByOccupancy(fillPct))}>
             {block.taken}
-            <span style={{ color: "rgba(245,180,0,0.20)" }}>/{totalSpots}</span>
+            <span className="text-accent/20">/{totalSpots}</span>
           </span>
         </div>
       </div>
 
-      {/* ── Barra de ocupación ────────────────────────── */}
-      <div
-        className="overflow-hidden rounded-b-xl"
-        style={{ height: 4, background: "#0d0d0d", borderRadius: "0 0 10px 10px" }}
-      >
+      <div className="h-1 overflow-hidden rounded-b-lg bg-input">
         <div
-          className="h-full transition-all duration-500"
-          style={{
-            width: `${fillPct}%`,
-            backgroundColor: accentByOccupancy(fillPct),
-            borderRadius: "0 2px 2px 0",
-          }}
+          className={clsx(
+            "h-full rounded-r-sm transition-all duration-500",
+            accentBackgroundClassByOccupancy(fillPct),
+          )}
+          style={{ width: `${fillPct}%` }}
         />
       </div>
     </button>

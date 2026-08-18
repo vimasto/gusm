@@ -7,11 +7,14 @@
 }
 
 @theme {
+  --container-app: 32.5rem;
+  --spacing-control: 3.125rem;
+
   --text-xxs: 0.625rem; /* 10px */
   --text-xxxs: 0.5rem; /* 8px */
 
   --color-accent: #f5b400;
-  --color-bg: #060606;
+  --color-bg: #000000;
   --color-surface: #000000;
   --color-divider: #111111;
   --color-input: #0a0a0a; /* same as neutral 950 */
@@ -22,14 +25,27 @@
   --shadow-accent: 0 4px 24px rgba(245, 180, 0, 0.25);
 }
 
+@utility gusm-app-shell {
+  width: 100%;
+  min-width: 0;
+  max-width: var(--container-app);
+  overflow-x: hidden;
+  background-color: var(--color-surface);
+}
+
 @utility gusm-input-primary {
-  @apply bg-neutral-950 px-4 py-3 text-base text-neutral-300 outline-none;
-  @apply rounded-xl border border-neutral-800;
-  @apply placeholder:text-neutral-700;
-  @apply hover:border-neutral-400;
+  min-height: var(--spacing-control);
+  @apply bg-input px-4 py-3 text-base text-neutral-300 outline-none;
+  @apply rounded-xl border border-divider;
+  @apply placeholder:text-dim;
+  @apply hover:border-muted;
   @apply disabled:cursor-not-allowed disabled:border-neutral-300/50 disabled:bg-neutral-100 disabled:text-neutral-500;
   @apply focus-visible:border-accent/40 focus-visible:ring-0 focus-visible:outline-none;
   @apply transition-colors transition-discrete duration-200 ease-in-out;
+}
+
+@utility gusm-control-height {
+  min-height: var(--spacing-control);
 }
 
 @utility gusm-button-primary {

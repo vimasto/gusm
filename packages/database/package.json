@@ -13,7 +13,7 @@
     "format": "oxfmt -c ../oxc-config/oxfmtrc.json .",
     "format:check": "oxfmt -c ../oxc-config/oxfmtrc.json --check .",
     "check-types": "tsc --noEmit",
-    "db:types": "supabase gen types typescript --linked > src/database.types.ts",
+    "db:types": "supabase gen types typescript --linked --schema public --schema private > src/database.types.ts",
     "db:migration:new": "supabase migration new",
     "db:push": "supabase db push"
   },
