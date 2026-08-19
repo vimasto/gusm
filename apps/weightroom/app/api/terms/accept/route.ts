@@ -14,9 +14,26 @@ function createErrorResponse(status: number) {
   );
 }
 
+function getForwardedOrigin(request: NextRequest) {
+  const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
+  const forwardedProtocol = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+
+  if (!forwardedHost || (forwardedProtocol !== "http" && forwardedProtocol !== "https")) {
+    return null;
+  }
+
+  try {
+    return new URL(`${forwardedProtocol}://${forwardedHost}`).origin;
+  } catch {
+    return null;
+  }
+}
+
 function isSameOrigin(request: NextRequest) {
   const origin = request.headers.get("origin");
-  return !origin || origin === request.nextUrl.origin;
+  const requestOrigin = getForwardedOrigin(request) ?? request.nextUrl.origin;
+
+  return !origin || origin === requestOrigin;
 }
 
 function isTermsAcceptanceRequest(payload: unknown) {
