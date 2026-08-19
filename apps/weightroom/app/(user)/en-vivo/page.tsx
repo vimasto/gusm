@@ -131,7 +131,7 @@ function sameDay(a: Date, b: Date) {
 // LiveOccupancyPage
 // ─────────────────────────────────────────────────────────────────────────────
 
-export default function ReadonlyView() {
+export default function LiveOccupancyPage() {
   const today = new Date();
   const week = getWeek();
   const todayIdx = week.findIndex((d) => sameDay(d, today));

@@ -255,7 +255,7 @@ export function UserTopBar({
                       type="button"
                       onClick={() => handleMenuItemClick(menuItem)}
                       className={clsx(
-                        "flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors",
+                        "flex items-center gap-2 rounded-lg px-3 py-2 text-left text-base transition-colors",
                         isDestructive
                           ? "text-red-500 hover:bg-red-500/10"
                           : "text-neutral-300 hover:bg-accent/10 hover:text-accent",

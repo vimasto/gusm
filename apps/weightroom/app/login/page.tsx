@@ -134,7 +134,7 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-svh w-full justify-center bg-bg">
-      <main className="flex min-h-svh gusm-app-shell flex-col items-center justify-center gap-12 bg-surface px-8 py-12">
+      <main className="flex min-h-svh gusm-app-shell flex-col items-center justify-center gap-12 px-8 py-12">
         <header className="flex flex-col items-center gap-3">
           <div className="size-42">
             <LoginAnimalImage />

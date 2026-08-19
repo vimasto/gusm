@@ -95,15 +95,17 @@ export function ActiveBookingsPanel({
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex min-w-0 items-center gap-1">
-                      <p className="shrink-0 font-mono text-sm tracking-wide text-neutral-200">
+                      <p className="shrink-0 font-mono text-base tracking-wide text-neutral-200">
                         {booking.timeRange}
                       </p>
-                      <p className="truncate text-sm text-muted">· {getDateLabel(booking.date)}</p>
+                      <p className="truncate text-base text-muted">
+                        · {getDateLabel(booking.date)}
+                      </p>
                     </div>
 
                     <span
                       className={clsx(
-                        "shrink-0 rounded-full border px-1.5 py-0 text-xs tracking-widest",
+                        "shrink-0 rounded-full border px-1.5 py-0 text-sm tracking-widest",
                         isConfirmed
                           ? "border-accent/40 bg-accent/15 text-accent"
                           : "border-accent/20 bg-accent/5 text-accent",
@@ -119,7 +121,7 @@ export function ActiveBookingsPanel({
                       onClick={() => onConfirm(booking.bookingKey)}
                       disabled={isConfirmationDisabled}
                       className={clsx(
-                        "flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-lg border px-2 text-sm transition-all active:scale-[0.98] disabled:cursor-not-allowed",
+                        "flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-lg border px-2 text-base transition-all active:scale-[0.98] disabled:cursor-not-allowed",
                         isConfirmationDisabled
                           ? "border-divider bg-surface text-dim opacity-45"
                           : "border-accent/40 bg-accent/10 text-accent hover:bg-accent/15",
@@ -133,7 +135,7 @@ export function ActiveBookingsPanel({
                       type="button"
                       onClick={() => handleCancel(booking.bookingKey)}
                       disabled={isCancellationDisabled}
-                      className="flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/5 px-2 text-sm text-red-500 transition-all hover:bg-red-500/10 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                      className="flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/5 px-2 text-base text-red-500 transition-all hover:bg-red-500/10 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <X className="size-4" aria-hidden="true" />
                       {booking.isCancellationLocked ? "Bloqueada" : "Cancelar"}

@@ -1,5 +1,5 @@
 import { ChevronUp, ChevronDown, Users } from "lucide-react";
-import { accentByOccupancy, fillPct as calcFillPct } from "@/lib/occupancy";
+import { accentBackgroundClassByOccupancy, fillPct as calcFillPct } from "@/lib/occupancy";
 import clsx from "clsx";
 
 type TimeBlockNavProps = {
@@ -49,7 +49,7 @@ export function TimeBlockNav({
             <ChevronUp className="size-4" />
           </button>
 
-          <span className="text-center text-xs text-muted">
+          <span className="text-center text-sm text-muted">
             {blockPosition.current}/{blockPosition.total}
           </span>
         </div>
@@ -63,7 +63,7 @@ export function TimeBlockNav({
           <div className="flex items-center justify-center gap-1.5">
             <Users className="size-3 text-accent/35" />
 
-            <span className="text-xs text-muted">
+            <span className="text-sm text-muted">
               <span className="text-accent">{participantCount}</span> inscritos de {totalSpots}
             </span>
           </div>
@@ -81,18 +81,18 @@ export function TimeBlockNav({
           >
             <ChevronDown className="size-4" />
           </button>
-          <span className="text-xs text-muted">bloque</span>
+          <span className="text-sm text-muted">bloque</span>
         </div>
       </div>
 
       {/* occupancy bar */}
       <div className="h-0.5 bg-input">
         <div
-          className="h-full transition-all duration-500"
-          style={{
-            width: `${fillPct}%`,
-            backgroundColor: accentByOccupancy(fillPct),
-          }}
+          className={clsx(
+            "h-full transition-all duration-500",
+            accentBackgroundClassByOccupancy(fillPct),
+          )}
+          style={{ width: `${fillPct}%` }}
         />
       </div>
     </>

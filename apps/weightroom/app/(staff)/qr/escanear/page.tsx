@@ -114,7 +114,7 @@ export default function CheckInScannerPage() {
 
   return (
     <main className="flex min-h-svh w-full justify-center bg-bg">
-      <div className="flex min-h-svh gusm-app-shell flex-col items-center justify-center bg-surface px-6 py-10 text-center">
+      <div className="flex min-h-svh gusm-app-shell flex-col items-center justify-center px-6 py-10 text-center">
         <div className="flex size-16 items-center justify-center rounded-3xl border border-accent/30 bg-accent/10 text-accent">
           <QrCode className="size-8" aria-hidden="true" />
         </div>

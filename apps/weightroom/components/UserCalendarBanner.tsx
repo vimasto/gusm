@@ -81,20 +81,10 @@ type UserCalendarBannerProps = {
   onCancelBooking: (bookingKey: string) => void;
 };
 
-type SelectionPillProps = {
-  isActive: boolean;
-};
-
-function SelectionPill({ isActive }: SelectionPillProps) {
-  return (
-    <div
-      className="rounded-full transition-all duration-300"
-      style={{
-        width: isActive ? 20 : 6,
-        height: 5,
-        backgroundColor: isActive ? "var(--color-accent)" : "var(--color-dim)",
-      }}
-    />
+function getSelectionPillClassName(isActive: boolean): string {
+  return clsx(
+    "h-1.5 rounded-full transition-all duration-300",
+    isActive ? "w-5 bg-accent" : "w-1.5 bg-dim",
   );
 }
 
@@ -203,7 +193,7 @@ export function UserCalendarBanner({
             >
               <span
                 className={clsx(
-                  "text-xs font-medium tracking-[0.12em]",
+                  "text-base font-medium tracking-[0.12em]",
                   isSelected ? "text-accent" : "text-dim",
                 )}
               >
@@ -226,7 +216,7 @@ export function UserCalendarBanner({
                 </span>
               </div>
 
-              <SelectionPill isActive={isSelected} />
+              <div className={getSelectionPillClassName(isSelected)} />
             </button>
           );
         })}
@@ -257,10 +247,10 @@ export function WeekIndicator({ weekOffset, onWeekChange }: WeekIndicatorProps) 
             onClick={() => onWeekChange(offset)}
             className="group flex flex-col items-center gap-0.5 active:scale-95"
           >
-            <SelectionPill isActive={isActive} />
+            <div className={getSelectionPillClassName(isActive)} />
             <span
               className={clsx(
-                "text-xs tracking-widest transition-all duration-200",
+                "text-base tracking-widest transition-all duration-200",
                 isActive ? "text-accent/60" : "text-dim",
               )}
             >

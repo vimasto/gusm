@@ -221,7 +221,7 @@ export default function CheckInQrPage() {
 
   return (
     <main className="flex min-h-svh w-full justify-center bg-bg">
-      <div className="relative flex min-h-svh gusm-app-shell flex-col bg-surface">
+      <div className="relative flex min-h-svh gusm-app-shell flex-col">
         <header className="sticky top-0 z-20 border-b border-divider bg-surface">
           <UserTopBar
             onBack={() => router.push("/reserva")}
@@ -277,7 +277,7 @@ export default function CheckInQrPage() {
               <button
                 type="button"
                 onClick={() => void issueQr()}
-                className="mt-5 flex items-center gap-2 text-sm font-medium text-accent transition-colors hover:text-accent/75"
+                className="mt-5 flex items-center gap-2 text-base font-medium text-accent transition-colors hover:text-accent/75"
               >
                 <RefreshCw className="size-4" aria-hidden="true" />
                 Generar otro código

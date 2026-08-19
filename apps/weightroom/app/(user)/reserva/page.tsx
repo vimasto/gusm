@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import * as z from "zod/v4";
 import { CREATE_SUPABASE_BROWSER_CLIENT } from "@gusm/database/client";
@@ -29,6 +29,18 @@ const CURRENT_USER_SCHEMA = z.object({
 });
 
 type CurrentUser = z.infer<typeof CURRENT_USER_SCHEMA>;
+
+const ACTIVE_BOOKINGS_RESPONSE_SCHEMA = z.object({
+  bookings: z.array(
+    z.object({
+      bookingId: z.string().uuid(),
+      bookingDate: z.string().date(),
+      status: z.enum(["reserved", "confirmed"]),
+      timeRange: z.string().min(1),
+      startTime: z.string().regex(/^\d{2}:\d{2}$/),
+    }),
+  ),
+});
 
 /** TODO: SELECT capacity FROM gym_rules LIMIT 1 */
 const MOCK_TOTAL_SPOTS = 15;
@@ -75,12 +87,43 @@ function getMockBlocksBase(dayIdx: number, weekOffset: number): UserBlock[] {
 // Booking state (per day)
 // ─────────────────────────────────────────────────────────────────────────────
 
-type DayKey = string; // `${weekOffset}-${dayIdx}`
+type BookingCalendarKey = `${number}-${number}`;
 type BookingEntry = {
   blockId: number;
   status: Exclude<UserBookingStatus, "none">;
   bookingDate: Date;
 };
+
+function getBookingCalendarKey(weekOffset: number, dayIndex: number): BookingCalendarKey {
+  return `${weekOffset}-${dayIndex}`;
+}
+
+async function getActiveBookings(): Promise<ActiveBooking[]> {
+  const response = await fetch("/api/bookings/active", { cache: "no-store" });
+  const payload: unknown = await response.json();
+  const parsedPayload = ACTIVE_BOOKINGS_RESPONSE_SCHEMA.safeParse(payload);
+
+  if (!response.ok || !parsedPayload.success) {
+    throw new Error("Active bookings request was rejected.");
+  }
+
+  return parsedPayload.data.bookings.map((booking) => ({
+    bookingKey: booking.bookingId,
+    date: new Date(`${booking.bookingDate}T12:00:00`),
+    timeRange: booking.timeRange,
+    status: booking.status,
+    isConfirmationAvailable: isConfirmationWindowActive(
+      new Date(`${booking.bookingDate}T12:00:00`),
+      booking.startTime,
+    ),
+    isCancellationLocked:
+      booking.status === "confirmed" &&
+      isConfirmedBookingCancellationLocked(
+        new Date(`${booking.bookingDate}T12:00:00`),
+        booking.startTime,
+      ),
+  }));
+}
 
 function getTimePart(parts: Intl.DateTimeFormatPart[], type: "hour" | "minute"): number {
   const part = parts.find((candidate) => candidate.type === type);
@@ -150,17 +193,18 @@ function getDefaultCalendarSelection() {
 // BookingPage
 // ─────────────────────────────────────────────────────────────────────────────
 
-export default function UserView() {
+export default function BookingPage() {
   const router = useRouter();
   const defaultCalendarSelection = getDefaultCalendarSelection();
 
   const [dayIdx, setDayIdx] = useState(defaultCalendarSelection.dayIndex);
   const [weekOffset, setWeekOffset] = useState(defaultCalendarSelection.weekOffset);
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [bookings, setBookings] = useState<Map<DayKey, BookingEntry>>(new Map());
+  const [bookings, setBookings] = useState<Map<BookingCalendarKey, BookingEntry>>(new Map());
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [activeBookings, setActiveBookings] = useState<ActiveBooking[]>([]);
 
-  const dayKey: DayKey = `${weekOffset}-${dayIdx}`;
+  const dayKey = getBookingCalendarKey(weekOffset, dayIdx);
   const booking = bookings.get(dayKey) ?? null;
   const selectedDate = getWeekDates(weekOffset)[dayIdx]!;
   const isSelectedDateAvailable = isBookingDateAvailable(selectedDate);
@@ -197,30 +241,6 @@ export default function UserView() {
     selectedTimeBlock !== undefined &&
     selectedTimeBlock !== null &&
     isFinalHourBeforeBlock(selectedDate, selectedTimeBlock.startTime);
-  const activeBookings = useMemo<ActiveBooking[]>(() => {
-    const result: ActiveBooking[] = [];
-
-    for (const [bookingKey, entry] of bookings) {
-      const block = BASE_BLOCKS.find((candidate) => candidate.id === entry.blockId);
-      if (!block) continue;
-
-      result.push({
-        bookingKey,
-        date: entry.bookingDate,
-        timeRange: block.timeRange,
-        status: entry.status === "confirmed" ? "confirmed" : "reserved",
-        isConfirmationAvailable:
-          entry.status === "inscribed" &&
-          isConfirmationWindowActive(entry.bookingDate, block.startTime),
-        isCancellationLocked:
-          entry.status === "confirmed" &&
-          isConfirmedBookingCancellationLocked(entry.bookingDate, block.startTime),
-      });
-    }
-
-    return result.sort((left, right) => left.date.getTime() - right.date.getTime());
-  }, [bookings]);
-
   useEffect(() => {
     const controller = new AbortController();
 
@@ -253,43 +273,53 @@ export default function UserView() {
     return () => controller.abort();
   }, []);
 
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function loadActiveBookings() {
+      try {
+        const nextActiveBookings = await getActiveBookings();
+        if (!isCancelled) setActiveBookings(nextActiveBookings);
+      } catch (error) {
+        if (!isCancelled) console.error("[RESERVA] could not load active bookings.", error);
+      }
+    }
+
+    void loadActiveBookings();
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
+
   // ── Handlers de calendario ────────────────────────────────────────────────
 
-  const handleSelectDay = useCallback(
-    (i: number) => {
-      setDayIdx(i);
-      const key: DayKey = `${weekOffset}-${i}`;
-      const b = bookings.get(key);
-      setSelectedId(b ? b.blockId : null);
-    },
-    [weekOffset, bookings],
-  );
+  function handleSelectDay(index: number) {
+    setDayIdx(index);
+    const nextBooking = bookings.get(getBookingCalendarKey(weekOffset, index));
+    setSelectedId(nextBooking ? nextBooking.blockId : null);
+  }
 
-  const handleWeekChange = useCallback(
-    (offset: number) => {
-      const clamped = Math.max(MIN_WEEK_OFFSET, Math.min(MAX_WEEK_OFFSET, offset));
-      const nextDayIndex =
-        clamped < 0 ? 0 : getWeekDates(clamped).findIndex(isBookingDateAvailable);
-      setWeekOffset(clamped);
-      setDayIdx(nextDayIndex);
-      const key: DayKey = `${clamped}-${nextDayIndex}`;
-      const b = bookings.get(key);
-      setSelectedId(b ? b.blockId : null);
-    },
-    [bookings],
-  );
+  function handleWeekChange(offset: number) {
+    const clamped = Math.max(MIN_WEEK_OFFSET, Math.min(MAX_WEEK_OFFSET, offset));
+    const nextDayIndex = clamped < 0 ? 0 : getWeekDates(clamped).findIndex(isBookingDateAvailable);
+    setWeekOffset(clamped);
+    setDayIdx(nextDayIndex);
+    const nextBooking = bookings.get(getBookingCalendarKey(clamped, nextDayIndex));
+    setSelectedId(nextBooking ? nextBooking.blockId : null);
+  }
 
-  const handleGoToday = useCallback(() => {
+  function handleGoToday() {
     setWeekOffset(defaultCalendarSelection.weekOffset);
     setDayIdx(defaultCalendarSelection.dayIndex);
-    const key: DayKey = `${defaultCalendarSelection.weekOffset}-${defaultCalendarSelection.dayIndex}`;
-    const b = bookings.get(key);
-    setSelectedId(b ? b.blockId : null);
-  }, [defaultCalendarSelection, bookings]);
+    const nextBooking = bookings.get(
+      getBookingCalendarKey(defaultCalendarSelection.weekOffset, defaultCalendarSelection.dayIndex),
+    );
+    setSelectedId(nextBooking ? nextBooking.blockId : null);
+  }
 
   // ── Handlers de reserva ───────────────────────────────────────────────────
 
-  const handleInscribe = useCallback(() => {
+  function handleInscribe() {
     if (!selectedId || !isSelectedDateAvailable || !isSelectedBookingAvailable) return;
     setBookings((prev) => {
       const next = new Map(prev);
@@ -300,56 +330,51 @@ export default function UserView() {
       });
       return next;
     });
-  }, [
-    selectedId,
-    dayKey,
-    isSelectedDateAvailable,
-    isSelectedBookingAvailable,
-    isSelectedBookingAutoConfirmed,
-    selectedDate,
-  ]);
+  }
 
-  const handleCancel = useCallback(() => {
+  function handleCancel() {
     setBookings((prev) => {
       const next = new Map(prev);
       next.delete(dayKey);
       return next;
     });
-  }, [dayKey]);
+  }
 
-  const handleConfirm = useCallback(() => {
+  function handleConfirm() {
     if (!booking) return;
     setBookings((prev) => {
       const next = new Map(prev);
       next.set(dayKey, { ...booking, status: "confirmed" });
       return next;
     });
-  }, [booking, dayKey]);
+  }
+
+  async function handleActiveBookingAction(bookingKey: string, action: "confirm" | "cancel") {
+    const response = await fetch("/api/bookings/action", {
+      method: "POST",
+      cache: "no-store",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ bookingId: bookingKey, action }),
+    });
+
+    if (!response.ok) {
+      console.error("[RESERVA] active booking action was rejected.");
+      return;
+    }
+
+    try {
+      setActiveBookings(await getActiveBookings());
+    } catch (error) {
+      console.error("[RESERVA] could not refresh active bookings.", error);
+    }
+  }
 
   function handleConfirmActiveBooking(bookingKey: string) {
-    setBookings((previousBookings) => {
-      const bookingEntry = previousBookings.get(bookingKey);
-      if (!bookingEntry || bookingEntry.status !== "inscribed") return previousBookings;
-
-      const block = BASE_BLOCKS.find((candidate) => candidate.id === bookingEntry.blockId);
-      if (!block || !isConfirmationWindowActive(bookingEntry.bookingDate, block.startTime)) {
-        return previousBookings;
-      }
-
-      const nextBookings = new Map(previousBookings);
-      nextBookings.set(bookingKey, { ...bookingEntry, status: "confirmed" });
-      return nextBookings;
-    });
+    return handleActiveBookingAction(bookingKey, "confirm");
   }
 
   function handleCancelActiveBooking(bookingKey: string) {
-    setBookings((previousBookings) => {
-      const nextBookings = new Map(previousBookings);
-      nextBookings.delete(bookingKey);
-      return nextBookings;
-    });
-
-    if (bookingKey === dayKey) setSelectedId(null);
+    return handleActiveBookingAction(bookingKey, "cancel");
   }
 
   function handleGoProfile() {

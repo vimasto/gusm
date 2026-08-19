@@ -491,6 +491,42 @@ export type Database = {
           },
         ]
       }
+      weekly_time_block_closure: {
+        Row: {
+          created_at: string
+          created_by_user_id: string
+          iso_weekday: number
+          time_block_id: number
+        }
+        Insert: {
+          created_at?: string
+          created_by_user_id: string
+          iso_weekday: number
+          time_block_id: number
+        }
+        Update: {
+          created_at?: string
+          created_by_user_id?: string
+          iso_weekday?: number
+          time_block_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "weekly_time_block_closure_created_by_user_id_fkey"
+            columns: ["created_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "app_user"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "weekly_time_block_closure_time_block_id_fkey"
+            columns: ["time_block_id"]
+            isOneToOne: false
+            referencedRelation: "time_block"
+            referencedColumns: ["time_block_id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -593,6 +629,21 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      create_weekly_time_block_closure: {
+        Args: { p_iso_weekday: number; p_time_block_id: number }
+        Returns: {
+          created_at: string
+          created_by_user_id: string
+          iso_weekday: number
+          time_block_id: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "weekly_time_block_closure"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       expire_unconfirmed_bookings: { Args: never; Returns: number }
       finalize_due_attendance: { Args: never; Returns: number }
       get_check_in_qr_status: {
@@ -658,6 +709,10 @@ export type Database = {
       }
       remove_time_block_closure: {
         Args: { p_closure_date: string; p_time_block_id: number }
+        Returns: boolean
+      }
+      remove_weekly_time_block_closure: {
+        Args: { p_iso_weekday: number; p_time_block_id: number }
         Returns: boolean
       }
       upsert_institutional_identity: {

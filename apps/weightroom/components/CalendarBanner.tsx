@@ -1,15 +1,8 @@
 import clsx from "clsx";
 import { UserTopBar } from "@/components/UserTopBar";
+import { isSameDay } from "@/components/UserCalendarBanner";
 
 const DAY_LETTERS = ["L", "M", "X", "J", "V"];
-
-function sameDay(a: Date, b: Date) {
-  return (
-    a.getDate() === b.getDate() &&
-    a.getMonth() === b.getMonth() &&
-    a.getFullYear() === b.getFullYear()
-  );
-}
 
 type CalendarBannerProps = {
   week: Date[];
@@ -28,12 +21,12 @@ export function CalendarBanner({
 }: CalendarBannerProps) {
   return (
     <header className="sticky top-0 z-20 border-b border-divider bg-surface">
-      <UserTopBar onGoToday={onGoToday} isTodaySelected={sameDay(week[selectedDay]!, today)} />
+      <UserTopBar onGoToday={onGoToday} isTodaySelected={isSameDay(week[selectedDay]!, today)} />
 
       <div className="grid grid-cols-5 gap-1 px-2 pb-4">
         {week.map((date, index) => {
           const isSelected = index === selectedDay;
-          const isToday = sameDay(date, today);
+          const isToday = isSameDay(date, today);
 
           return (
             <button
@@ -43,7 +36,7 @@ export function CalendarBanner({
               className="flex flex-col items-center justify-center gap-1.5 rounded-2xl py-1 transition-all active:scale-95"
             >
               <span
-                className={clsx("text-xs font-medium", isSelected ? "text-accent" : "text-dim")}
+                className={clsx("text-base font-medium", isSelected ? "text-accent" : "text-dim")}
               >
                 {DAY_LETTERS[index]}
               </span>

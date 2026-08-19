@@ -285,12 +285,9 @@ export default function ProfilePage() {
 
   const age = profile?.dateOfBirth ? getAge(profile.dateOfBirth, today) : null;
   const sexLabel = profile?.reportedSex ? REPORTED_SEX_LABELS[profile.reportedSex] : null;
-  const isStaff = profile?.role === "gym_staff" || profile?.role === "admin";
-  const isAdmin = profile?.role === "admin";
-
   return (
     <main className="flex min-h-svh w-full justify-center bg-bg">
-      <div className="flex min-h-svh gusm-app-shell flex-col bg-surface">
+      <div className="flex min-h-svh gusm-app-shell flex-col">
         <header className="sticky top-0 z-20 border-b border-divider bg-surface">
           <UserTopBar
             onBack={() => router.push("/reserva")}
@@ -298,8 +295,6 @@ export default function ProfilePage() {
             userName={profile?.userName}
             role={profile?.role}
             showActiveBookings={false}
-            onGoOvercapacity={isStaff ? () => router.push("/sobrecupo") : undefined}
-            onGoSettings={isAdmin ? () => router.push("/configuracion") : undefined}
             onSignOut={signOut}
           />
         </header>
@@ -355,19 +350,19 @@ export default function ProfilePage() {
 
                 <dl className="mt-4 grid grid-cols-2 divide-x divide-y divide-accent/15 overflow-hidden rounded-xl border border-accent/15">
                   <div className="min-w-0 px-3 py-3">
-                    <dt className="text-xs text-dim">Edad</dt>
+                    <dt className="text-sm text-dim">Edad</dt>
                     <dd className="mt-1 truncate text-base font-medium text-neutral-200">
                       {getProfileValue(age)}
                     </dd>
                   </div>
                   <div className="min-w-0 px-3 py-3">
-                    <dt className="text-xs text-dim">Sexo declarado</dt>
+                    <dt className="text-sm text-dim">Sexo declarado</dt>
                     <dd className="mt-1 truncate text-base font-medium text-neutral-200">
                       {getProfileValue(sexLabel)}
                     </dd>
                   </div>
                   <div className="min-w-0 px-3 py-3">
-                    <dt className="text-xs text-dim">Altura</dt>
+                    <dt className="text-sm text-dim">Altura</dt>
                     <dd className="mt-1 truncate text-base font-medium text-neutral-200">
                       {profile?.heightCm === null || profile?.heightCm === undefined
                         ? "No informada"
@@ -375,7 +370,7 @@ export default function ProfilePage() {
                     </dd>
                   </div>
                   <div className="min-w-0 px-3 py-3">
-                    <dt className="text-xs text-dim">Peso</dt>
+                    <dt className="text-sm text-dim">Peso</dt>
                     <dd className="mt-1 truncate text-base font-medium text-neutral-200">
                       {profile?.weightKg === null || profile?.weightKg === undefined
                         ? "No informado"
