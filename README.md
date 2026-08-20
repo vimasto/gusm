@@ -36,6 +36,50 @@ pnpm check-types
 pnpm format:check
 ```
 
+## Despliegue en Vercel
+
+GYMU se despliega como un proyecto Vercel asociado a este monorepo. La detección nativa de
+Turborepo y pnpm resuelve las dependencias `workspace:*`; no agregar `vercel.json` ni copiar
+los paquetes compartidos al directorio de la aplicación.
+
+En la importación inicial del repositorio configurar:
+
+- Framework Preset: `Next.js`.
+- Root Directory: `apps/weightroom`.
+- Include source files outside of the Root Directory in the Build Step: habilitado.
+- Node.js Version: `24.x`.
+- Install Command y Build Command: los valores detectados por Vercel para pnpm y Turborepo.
+
+El único proyecto Supabase actual es productivo. Hasta crear un proyecto separado de staging,
+configurar estas variables solo en **Production**. Los previews no deben recibir secretos de
+producción ni deben usarse para validar mutaciones reales:
+
+```text
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+SUPABASE_SECRET_KEY
+SANSANO_AUTH_BASE_URL
+SANSANO_AUTH_API_KEY
+GUSM_IDENTITY_HMAC_KEY
+```
+
+`SUPABASE_SECRET_KEY`, `SANSANO_AUTH_API_KEY` y `GUSM_IDENTITY_HMAC_KEY` se agregan como
+secretos sensibles. Una modificación de variables requiere un nuevo deployment. Vercel Hobby
+está restringido por Vercel a uso personal y no comercial; usarlo inicialmente como piloto y
+confirmar su adecuación institucional antes de declarar el servicio como producción permanente.
+
+Para evitar la pausa por inactividad de Supabase Free, GitHub Actions ejecuta
+`.github/workflows/supabase-keepalive.yml` todos los días. En el repositorio, crear estos
+Actions secrets antes de fusionar el workflow a la rama predeterminada:
+
+```text
+SUPABASE_PROJECT_URL     # URL del proyecto, sin necesidad de barra final
+SUPABASE_KEEPALIVE_KEY   # SUPABASE_SECRET_KEY, nunca la publishable key
+```
+
+Tras el primer deployment productivo verificar manualmente `/login`, aceptación de términos,
+`/reserva`, `/perfil`, emisión QR y una lectura controlada de `/qr/escanear`.
+
 ## Supabase
 
 ```sh
