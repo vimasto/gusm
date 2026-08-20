@@ -302,7 +302,7 @@ export default function ProfilePage() {
         <div className="flex flex-1 flex-col gap-4 px-4 py-5">
           {loadError && !profile ? (
             <section className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
-              <p className="text-base text-neutral-300">No fue posible cargar tu perfil.</p>
+              <p className="text-base text-foreground-muted">No fue posible cargar tu perfil.</p>
               <button
                 type="button"
                 onClick={() => setReloadIndex((currentIndex) => currentIndex + 1)}
@@ -335,7 +335,7 @@ export default function ProfilePage() {
                     <p className="text-xs font-medium tracking-[0.12em] text-dim uppercase">
                       Datos opcionales
                     </p>
-                    <h2 className="mt-1 text-lg font-semibold text-neutral-100">Tu información</h2>
+                    <h2 className="mt-1 text-lg font-semibold text-foreground">Tu información</h2>
                   </div>
                   <button
                     type="button"
@@ -351,19 +351,19 @@ export default function ProfilePage() {
                 <dl className="mt-4 grid grid-cols-2 divide-x divide-y divide-accent/15 overflow-hidden rounded-xl border border-accent/15">
                   <div className="min-w-0 px-3 py-3">
                     <dt className="text-sm text-dim">Edad</dt>
-                    <dd className="mt-1 truncate text-base font-medium text-neutral-200">
+                    <dd className="mt-1 truncate text-base font-medium text-foreground">
                       {getProfileValue(age)}
                     </dd>
                   </div>
                   <div className="min-w-0 px-3 py-3">
                     <dt className="text-sm text-dim">Sexo declarado</dt>
-                    <dd className="mt-1 truncate text-base font-medium text-neutral-200">
+                    <dd className="mt-1 truncate text-base font-medium text-foreground">
                       {getProfileValue(sexLabel)}
                     </dd>
                   </div>
                   <div className="min-w-0 px-3 py-3">
                     <dt className="text-sm text-dim">Altura</dt>
-                    <dd className="mt-1 truncate text-base font-medium text-neutral-200">
+                    <dd className="mt-1 truncate text-base font-medium text-foreground">
                       {profile?.heightCm === null || profile?.heightCm === undefined
                         ? "No informada"
                         : `${profile.heightCm} cm`}
@@ -371,7 +371,7 @@ export default function ProfilePage() {
                   </div>
                   <div className="min-w-0 px-3 py-3">
                     <dt className="text-sm text-dim">Peso</dt>
-                    <dd className="mt-1 truncate text-base font-medium text-neutral-200">
+                    <dd className="mt-1 truncate text-base font-medium text-foreground">
                       {profile?.weightKg === null || profile?.weightKg === undefined
                         ? "No informado"
                         : `${profile.weightKg} kg`}
@@ -385,13 +385,13 @@ export default function ProfilePage() {
                 <dl className="mt-3 divide-y divide-accent/15 border-y border-accent/15">
                   <div className="flex items-center justify-between gap-4 py-3">
                     <dt className="text-sm text-muted">Usuario institucional</dt>
-                    <dd className="min-w-0 truncate text-base font-medium text-neutral-200">
+                    <dd className="min-w-0 truncate text-base font-medium text-foreground">
                       {profile?.institutionalUsername ?? "No disponible"}
                     </dd>
                   </div>
                   <div className="flex items-center justify-between gap-4 py-3">
                     <dt className="text-sm text-muted">Rol</dt>
-                    <dd className="text-base font-medium text-neutral-200">
+                    <dd className="text-base font-medium text-foreground">
                       {profile ? ROLE_LABELS[profile.role] : ""}
                     </dd>
                   </div>
@@ -405,7 +405,7 @@ export default function ProfilePage() {
       {isEditorOpen && (
         <div
           role="presentation"
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 px-3 py-3 backdrop-blur-sm sm:items-center"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-overlay px-3 py-3 backdrop-blur-sm sm:items-center"
           onMouseDown={closeEditor}
         >
           <form
@@ -423,7 +423,7 @@ export default function ProfilePage() {
                 </p>
                 <h2
                   id="profile-editor-title"
-                  className="mt-1 text-lg font-semibold text-neutral-100"
+                  className="mt-1 text-lg font-semibold text-foreground"
                 >
                   Actualizar información
                 </h2>
@@ -443,7 +443,7 @@ export default function ProfilePage() {
               Estos datos son opcionales. Puedes actualizarlos cuando lo necesites.
             </p>
 
-            <label className="flex flex-col gap-2 text-sm text-neutral-300">
+            <label className="flex flex-col gap-2 text-sm text-foreground-muted">
               Fecha de nacimiento
               <input
                 type="date"
@@ -455,11 +455,11 @@ export default function ProfilePage() {
                   }))
                 }
                 max={getMonthQuery(today) + `-${String(today.getDate()).padStart(2, "0")}`}
-                className="gusm-input-primary [color-scheme:dark]"
+                className="gusm-input-primary"
               />
             </label>
 
-            <label className="flex flex-col gap-2 text-sm text-neutral-300">
+            <label className="flex flex-col gap-2 text-sm text-foreground-muted">
               Sexo declarado
               <select
                 value={formValues.reportedSex}
@@ -475,7 +475,7 @@ export default function ProfilePage() {
                         : "",
                   }))
                 }
-                className="gusm-input-primary [color-scheme:dark]"
+                className="gusm-input-primary"
               >
                 <option value="">No informado</option>
                 <option value="masculino">Masculino</option>
@@ -486,7 +486,7 @@ export default function ProfilePage() {
             </label>
 
             <div className="flex flex-col gap-4">
-              <label className="flex min-w-0 flex-col gap-2 text-sm text-neutral-300">
+              <label className="flex min-w-0 flex-col gap-2 text-sm text-foreground-muted">
                 Altura (cm)
                 <input
                   type="number"
@@ -505,11 +505,11 @@ export default function ProfilePage() {
                       heightCm: normalizeHeightInput(event.target.value),
                     }))
                   }
-                  className="gusm-input-primary [color-scheme:dark]"
+                  className="gusm-input-primary"
                 />
               </label>
 
-              <label className="flex min-w-0 flex-col gap-2 text-sm text-neutral-300">
+              <label className="flex min-w-0 flex-col gap-2 text-sm text-foreground-muted">
                 Peso (kg)
                 <input
                   type="number"
@@ -528,7 +528,7 @@ export default function ProfilePage() {
                       weightKg: normalizeWeightInput(event.target.value),
                     }))
                   }
-                  className="gusm-input-primary [color-scheme:dark]"
+                  className="gusm-input-primary"
                 />
               </label>
             </div>
@@ -544,7 +544,7 @@ export default function ProfilePage() {
                 type="button"
                 onClick={closeEditor}
                 disabled={isSaving}
-                className="gusm-control-height rounded-xl border border-divider px-4 text-base text-neutral-300 transition-colors hover:border-muted disabled:cursor-not-allowed disabled:opacity-50"
+                className="gusm-control-height rounded-xl border border-divider px-4 text-base text-foreground-muted transition-colors hover:border-muted disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Cancelar
               </button>

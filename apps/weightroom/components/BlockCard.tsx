@@ -33,8 +33,8 @@ function getCardSurfaceClass(isUserBlock: boolean, isSelected: boolean, fillPct:
 }
 
 function getTimeTextClass(isUserBlock: boolean, isSelected: boolean) {
-  if (isUserBlock) return "text-neutral-100";
-  if (isSelected) return "text-neutral-300";
+  if (isUserBlock) return "text-foreground";
+  if (isSelected) return "text-foreground-muted";
   return "text-muted";
 }
 

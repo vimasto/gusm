@@ -12,6 +12,7 @@ import { EXTERNAL_LINK_PROPS } from "@gusm/utils/link";
 import { EmailDomainSelect } from "@/components/EmailDomainSelect";
 import { IconGithub } from "@/components/icons";
 import { LoginAnimalImage } from "@/components/LoginAnimalImage";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { DEFAULT_EMAIL_DOMAIN, EMAIL_DOMAINS, GITHUB_VIMASTO_ORG_URL } from "@/constants";
 import {
   LOGIN_ERROR_RESPONSE_SCHEMA,
@@ -134,15 +135,16 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-svh w-full justify-center bg-bg">
-      <main className="flex min-h-svh gusm-app-shell flex-col items-center justify-center gap-12 px-8 py-12">
+      <main className="relative flex min-h-svh gusm-app-shell flex-col items-center justify-center gap-12 px-8 py-12">
+        <ThemeToggle className="absolute top-4 right-4" />
         <header className="flex flex-col items-center gap-3">
           <div className="size-42">
             <LoginAnimalImage />
           </div>
 
           <div className="flex flex-col items-center gap-1">
-            <h1 className="text-base text-neutral-400">Sala de Musculación</h1>
-            <p className="text-sm text-neutral-500 uppercase">UTFSM</p>
+            <h1 className="text-base text-foreground-muted">Sala de Musculación</h1>
+            <p className="text-sm text-muted uppercase">UTFSM</p>
           </div>
         </header>
 
@@ -154,7 +156,7 @@ export default function LoginPage() {
         >
           <div className="flex flex-col gap-1">
             <label htmlFor="username" className="flex flex-col gap-1">
-              <span className="text-sm text-neutral-500">Correo institucional</span>
+              <span className="text-sm text-muted">Correo institucional</span>
 
               <span className="flex w-full">
                 <input
@@ -194,7 +196,7 @@ export default function LoginPage() {
 
           <div className="flex flex-col gap-1">
             <label htmlFor="password" className="grid gap-1">
-              <span className="text-sm text-neutral-500">Contraseña</span>
+              <span className="text-sm text-muted">Contraseña</span>
 
               <span className="relative">
                 <input
@@ -219,7 +221,7 @@ export default function LoginPage() {
                   onClick={togglePasswordVisibility}
                   disabled={formDisabled}
                   aria-label={passwordVisible ? "Ocultar contraseña" : "Mostrar contraseña"}
-                  className="absolute top-1/2 right-3 -translate-y-1/2 p-1 text-neutral-600 transition-colors hover:text-neutral-400 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="absolute top-1/2 right-3 -translate-y-1/2 p-1 text-dim transition-colors hover:text-foreground-muted disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   {passwordVisible ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
@@ -262,15 +264,13 @@ export default function LoginPage() {
         </form>
 
         <footer className="flex flex-col items-center gap-2">
-          <p className="text-xs text-neutral-500">
-            Creado para la comunidad Sansana de Concepción.
-          </p>
+          <p className="text-xs text-muted">Creado para la comunidad Sansana de Concepción.</p>
 
           <Link
             {...EXTERNAL_LINK_PROPS()}
             href={GITHUB_VIMASTO_ORG_URL}
             aria-label="GitHub de Vimasto"
-            className="text-neutral-500 transition-colors hover:text-neutral-400"
+            className="text-muted transition-colors hover:text-foreground-muted"
           >
             <IconGithub className="size-5" />
           </Link>

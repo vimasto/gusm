@@ -53,7 +53,7 @@ export function ParticipantList({ participants, totalSpots, faded }: Participant
 
           {/* Nombre completo */}
           {fullName ? (
-            <span className="text-sm text-neutral-300">{fullName}</span>
+            <span className="text-sm text-foreground-muted">{fullName}</span>
           ) : (
             <span className={clsx("text-sm text-accent/20")}>— disponible</span>
           )}

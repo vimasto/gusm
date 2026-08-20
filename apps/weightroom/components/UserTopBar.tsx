@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import { ActiveBookingsPanel, type ActiveBooking } from "@/components/ActiveBookingsPanel";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const SPANISH_PLURAL_RULES = new Intl.PluralRules("es-CL");
 
@@ -215,7 +216,7 @@ export function UserTopBar({
                 )}
               >
                 <Flame className="size-4 shrink-0 text-accent" aria-hidden="true" />
-                <span className="text-sm text-neutral-300">
+                <span className="text-sm text-foreground-muted">
                   Llevas{" "}
                   <span className="font-semibold text-accent tabular-nums">{streakWeeks}</span>{" "}
                   {streakLabel}
@@ -224,6 +225,8 @@ export function UserTopBar({
             )}
           </div>
         )}
+
+        <ThemeToggle />
 
         {hasMenu && (
           <div className="relative shrink-0">
@@ -258,7 +261,7 @@ export function UserTopBar({
                         "flex items-center gap-2 rounded-lg px-3 py-2 text-left text-base transition-colors",
                         isDestructive
                           ? "text-red-500 hover:bg-red-500/10"
-                          : "text-neutral-300 hover:bg-accent/10 hover:text-accent",
+                          : "text-foreground-muted hover:bg-accent/10 hover:text-accent",
                       )}
                     >
                       <Icon className="size-4" aria-hidden="true" />

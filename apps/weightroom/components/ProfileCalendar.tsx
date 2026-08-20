@@ -109,7 +109,7 @@ export function ProfileCalendar({
   return (
     <section className="rounded-2xl border border-accent/15 bg-input/30 px-4 py-4">
       <div className="mb-4 flex items-center justify-between gap-3">
-        <h1 className="text-lg font-semibold text-neutral-100 capitalize">{monthLabel}</h1>
+        <h1 className="text-lg font-semibold text-foreground capitalize">{monthLabel}</h1>
         <div className="flex items-center gap-1">
           <button
             type="button"
@@ -184,7 +184,7 @@ export function ProfileCalendar({
           <div className="flex h-6 items-center">
             <p className="text-xs font-medium tracking-[0.12em] text-dim uppercase">Asistencias</p>
           </div>
-          <p className="mt-1 text-base font-semibold text-neutral-100">
+          <p className="mt-1 text-base font-semibold text-foreground">
             {monthlyAttendance}{" "}
             <span className="text-sm font-normal text-muted">{attendanceLabel}</span>
           </p>

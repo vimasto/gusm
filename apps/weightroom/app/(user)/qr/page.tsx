@@ -245,7 +245,7 @@ export default function CheckInQrPage() {
               <p className="text-sm font-medium tracking-[0.16em] text-accent uppercase">
                 Bloque {screen.timeBlockId}
               </p>
-              <h1 className="mt-2 text-2xl font-semibold text-neutral-100">Escanea tu código QR</h1>
+              <h1 className="mt-2 text-2xl font-semibold text-foreground">Escanea tu código QR</h1>
               <p className="mt-2 max-w-72 text-sm leading-6 text-muted">
                 Muéstralo al lector de la sala durante los primeros 15 minutos del bloque.
               </p>
@@ -326,7 +326,7 @@ export default function CheckInQrPage() {
                 className={`mx-auto size-12 ${scanResultContent.iconClassName}`}
                 aria-hidden="true"
               />
-              <h2 className="mt-4 text-xl font-semibold text-neutral-100">
+              <h2 className="mt-4 text-xl font-semibold text-foreground">
                 {scanResultContent.title}
               </h2>
               <p className="mt-2 text-sm leading-6 text-muted">{scanResultContent.description}</p>
@@ -357,7 +357,7 @@ function QrNotice({ icon: Icon, title, description, actionLabel, onAction }: QrN
   return (
     <div className="flex max-w-sm flex-col items-center">
       <Icon className="size-11 text-accent" aria-hidden="true" />
-      <h1 className="mt-5 text-2xl font-semibold text-neutral-100">{title}</h1>
+      <h1 className="mt-5 text-2xl font-semibold text-foreground">{title}</h1>
       <p className="mt-3 text-sm leading-6 text-muted">{description}</p>
       <button type="button" onClick={onAction} className="mt-7 w-full gusm-button-primary">
         {actionLabel}

@@ -49,7 +49,7 @@ export function ActiveBookingsPanel({
 
   return (
     <div
-      className="fixed inset-x-0 top-18 bottom-0 z-40 flex justify-center bg-black/70 px-4 pt-6"
+      className="fixed inset-x-0 top-18 bottom-0 z-40 flex justify-center bg-overlay px-4 pt-6"
       onClick={onClose}
     >
       <section
@@ -69,7 +69,7 @@ export function ActiveBookingsPanel({
             type="button"
             onClick={onClose}
             aria-label="Cerrar reservas activas"
-            className="flex size-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-input hover:text-neutral-100 active:scale-95"
+            className="flex size-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-input hover:text-foreground active:scale-95"
           >
             <X className="size-4" aria-hidden="true" />
           </button>
@@ -95,7 +95,7 @@ export function ActiveBookingsPanel({
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex min-w-0 items-center gap-1">
-                      <p className="shrink-0 font-mono text-base tracking-wide text-neutral-200">
+                      <p className="shrink-0 font-mono text-base tracking-wide text-foreground">
                         {booking.timeRange}
                       </p>
                       <p className="truncate text-base text-muted">

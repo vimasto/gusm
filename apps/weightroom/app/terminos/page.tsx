@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 export default function TermsPage() {
   const [acceptanceError, setAcceptanceError] = useState(false);
@@ -35,14 +36,15 @@ export default function TermsPage() {
   }
 
   return (
-    <main className="flex min-h-full gusm-app-shell flex-col gap-8 px-8 py-12">
+    <main className="relative flex min-h-full gusm-app-shell flex-col gap-8 px-8 py-12">
+      <ThemeToggle className="absolute top-4 right-4" />
       <header className="flex flex-col gap-3">
         <p className="text-sm tracking-[0.16em] text-accent uppercase">GYMU · versión 2</p>
-        <h1 className="text-2xl font-semibold text-neutral-100">Términos y condiciones</h1>
-        <p className="text-base leading-6 text-neutral-400">Sala de Musculación UTFSM Concepción</p>
+        <h1 className="text-2xl font-semibold text-foreground">Términos y condiciones</h1>
+        <p className="text-base leading-6 text-muted">Sala de Musculación UTFSM Concepción</p>
       </header>
 
-      <article className="flex flex-col gap-5 rounded-2xl border border-accent/15 px-5 py-5 text-sm leading-6 text-neutral-400">
+      <article className="flex flex-col gap-5 rounded-2xl border border-accent/15 px-5 py-5 text-sm leading-6 text-muted">
         <p className="text-justify">
           GYMU es la aplicación de gestión y reserva de la Sala de Musculación UTFSM Concepción,
           desarrollada por estudiantes de Ingeniería Informática, autorizada y respaldada por el
@@ -50,7 +52,7 @@ export default function TermsPage() {
         </p>
 
         <section>
-          <h2 className="text-base font-semibold text-neutral-200">Datos tratados</h2>
+          <h2 className="text-base font-semibold text-foreground">Datos tratados</h2>
           <p className="text-justify">
             Para gestionar la Sala de Musculación, GYMU trata los datos necesarios para tu cuenta,
             rol, reservas, confirmaciones, asistencias, inasistencias y advertencias operativas.
@@ -63,7 +65,7 @@ export default function TermsPage() {
         </section>
 
         <section>
-          <h2 className="text-base font-semibold text-neutral-200">Datos voluntarios de perfil</h2>
+          <h2 className="text-base font-semibold text-foreground">Datos voluntarios de perfil</h2>
           <p className="text-justify">
             Puedes proporcionar voluntariamente tu fecha de nacimiento, sexo declarado, altura y
             peso. Estos datos se usan para tu perfil, estadísticas de participación y análisis
@@ -74,7 +76,7 @@ export default function TermsPage() {
         </section>
 
         <section>
-          <h2 className="text-base font-semibold text-neutral-200">Finalidades y acceso</h2>
+          <h2 className="text-base font-semibold text-foreground">Finalidades y acceso</h2>
           <p className="text-justify">
             DEFIDER podrá utilizar los datos para administrar cupos, asistencia y funcionamiento de
             la Sala de Musculación, además de elaborar métricas, informes y presentaciones
@@ -85,7 +87,7 @@ export default function TermsPage() {
         </section>
 
         <section>
-          <h2 className="text-base font-semibold text-neutral-200">Protección y uso de datos</h2>
+          <h2 className="text-base font-semibold text-foreground">Protección y uso de datos</h2>
           <p className="text-justify">
             Tus datos JAMÁS serán vendidos, arrendados ni cedidos con fines comerciales o no
             comerciales. Solo podrán ser tratados por personas o sistemas que participen en la
@@ -95,7 +97,7 @@ export default function TermsPage() {
         </section>
 
         <section>
-          <h2 className="text-base font-semibold text-neutral-200">Tus derechos</h2>
+          <h2 className="text-base font-semibold text-foreground">Tus derechos</h2>
           <p className="text-justify">
             Puedes solicitar información, rectificación, actualización o eliminación de tus datos
             personales, según corresponda, escribiendo a
@@ -112,7 +114,7 @@ export default function TermsPage() {
         </section>
 
         <section>
-          <h2 className="text-base font-semibold text-neutral-200">Aceptación y actualizaciones</h2>
+          <h2 className="text-base font-semibold text-foreground">Aceptación y actualizaciones</h2>
           <p className="text-justify">
             Al seleccionar “He leído y acepto”, declaras haber revisado estos términos y autorizas
             el tratamiento descrito para las finalidades señaladas. La aceptación registra la fecha

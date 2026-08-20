@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { QrCode, ScanLine } from "lucide-react";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 type ScannerState =
   | "idle"
@@ -114,14 +115,15 @@ export default function CheckInScannerPage() {
 
   return (
     <main className="flex min-h-svh w-full justify-center bg-bg">
-      <div className="flex min-h-svh gusm-app-shell flex-col items-center justify-center px-6 py-10 text-center">
+      <div className="relative flex min-h-svh gusm-app-shell flex-col items-center justify-center px-6 py-10 text-center">
+        <ThemeToggle className="absolute top-4 right-4" />
         <div className="flex size-16 items-center justify-center rounded-3xl border border-accent/30 bg-accent/10 text-accent">
           <QrCode className="size-8" aria-hidden="true" />
         </div>
         <p className="mt-6 text-sm font-medium tracking-[0.16em] text-accent uppercase">
           Estación de staff
         </p>
-        <h1 className="mt-2 text-3xl font-semibold text-neutral-100">Registrar asistencia</h1>
+        <h1 className="mt-2 text-3xl font-semibold text-foreground">Registrar asistencia</h1>
         <p className="mt-3 max-w-sm text-sm leading-6 text-muted">
           Mantén esta vista abierta. El Zebra USB envía el QR como teclado y confirma con Enter.
         </p>

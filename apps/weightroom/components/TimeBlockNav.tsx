@@ -56,7 +56,7 @@ export function TimeBlockNav({
 
         {/* time range */}
         <div className="flex flex-col items-center gap-1">
-          <div className="font-mono text-2xl font-bold tracking-widest text-neutral-100">
+          <div className="font-mono text-2xl font-bold tracking-widest text-foreground">
             {timeRange}
           </div>
 

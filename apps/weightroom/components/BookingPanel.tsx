@@ -142,7 +142,7 @@ function BlockInfo({ block, totalSpots, fillPct, date }: BlockInfoProps) {
 
   return (
     <div className="flex items-start justify-between gap-3">
-      <span className="min-w-0 truncate font-mono text-sm tracking-wide text-neutral-300">
+      <span className="min-w-0 truncate font-mono text-sm tracking-wide text-foreground-muted">
         {blockLabel}
       </span>
 
@@ -181,7 +181,7 @@ const bannerDotVariants = cva("size-1.5 shrink-0 rounded-full transition-all dur
 const bannerTextVariants = cva("text-sm transition-colors duration-300", {
   variants: {
     state: {
-      active: "text-neutral-300",
+      active: "text-foreground-muted",
       inactive: "text-dim",
       warning: "text-muted",
     },
