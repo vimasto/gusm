@@ -30,18 +30,6 @@ const CURRENT_USER_SCHEMA = z.object({
 
 type CurrentUser = z.infer<typeof CURRENT_USER_SCHEMA>;
 
-const ACTIVE_BOOKINGS_RESPONSE_SCHEMA = z.object({
-  bookings: z.array(
-    z.object({
-      bookingId: z.string().uuid(),
-      bookingDate: z.string().date(),
-      status: z.enum(["reserved", "confirmed"]),
-      timeRange: z.string().min(1),
-      startTime: z.string().regex(/^\d{2}:\d{2}$/),
-    }),
-  ),
-});
-
 /** TODO: SELECT capacity FROM gym_rules LIMIT 1 */
 const MOCK_TOTAL_SPOTS = 15;
 
@@ -98,31 +86,8 @@ function getBookingCalendarKey(weekOffset: number, dayIndex: number): BookingCal
   return `${weekOffset}-${dayIndex}`;
 }
 
-async function getActiveBookings(): Promise<ActiveBooking[]> {
-  const response = await fetch("/api/bookings/active", { cache: "no-store" });
-  const payload: unknown = await response.json();
-  const parsedPayload = ACTIVE_BOOKINGS_RESPONSE_SCHEMA.safeParse(payload);
-
-  if (!response.ok || !parsedPayload.success) {
-    throw new Error("Active bookings request was rejected.");
-  }
-
-  return parsedPayload.data.bookings.map((booking) => ({
-    bookingKey: booking.bookingId,
-    date: new Date(`${booking.bookingDate}T12:00:00`),
-    timeRange: booking.timeRange,
-    status: booking.status,
-    isConfirmationAvailable: isConfirmationWindowActive(
-      new Date(`${booking.bookingDate}T12:00:00`),
-      booking.startTime,
-    ),
-    isCancellationLocked:
-      booking.status === "confirmed" &&
-      isConfirmedBookingCancellationLocked(
-        new Date(`${booking.bookingDate}T12:00:00`),
-        booking.startTime,
-      ),
-  }));
+function isBookingCalendarKey(value: string): value is BookingCalendarKey {
+  return /^-?\d+-\d+$/.test(value);
 }
 
 function getTimePart(parts: Intl.DateTimeFormatPart[], type: "hour" | "minute"): number {
@@ -202,7 +167,6 @@ export default function BookingPage() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [bookings, setBookings] = useState<Map<BookingCalendarKey, BookingEntry>>(new Map());
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
-  const [activeBookings, setActiveBookings] = useState<ActiveBooking[]>([]);
 
   const dayKey = getBookingCalendarKey(weekOffset, dayIdx);
   const booking = bookings.get(dayKey) ?? null;
@@ -241,6 +205,31 @@ export default function BookingPage() {
     selectedTimeBlock !== undefined &&
     selectedTimeBlock !== null &&
     isFinalHourBeforeBlock(selectedDate, selectedTimeBlock.startTime);
+  // Se mantiene en la misma fuente mock que los bloques hasta conectar create_booking.
+  const activeBookings = useMemo<ActiveBooking[]>(() => {
+    const result: ActiveBooking[] = [];
+
+    for (const [bookingKey, entry] of bookings) {
+      const block = BASE_BLOCKS.find((candidate) => candidate.id === entry.blockId);
+      if (!block) continue;
+
+      result.push({
+        bookingKey,
+        date: entry.bookingDate,
+        timeRange: block.timeRange,
+        status: entry.status === "confirmed" ? "confirmed" : "reserved",
+        isConfirmationAvailable:
+          entry.status === "inscribed" &&
+          isConfirmationWindowActive(entry.bookingDate, block.startTime),
+        isCancellationLocked:
+          entry.status === "confirmed" &&
+          isConfirmedBookingCancellationLocked(entry.bookingDate, block.startTime),
+      });
+    }
+
+    return result.sort((left, right) => left.date.getTime() - right.date.getTime());
+  }, [bookings]);
+
   useEffect(() => {
     const controller = new AbortController();
 
@@ -271,24 +260,6 @@ export default function BookingPage() {
 
     void loadCurrentUser();
     return () => controller.abort();
-  }, []);
-
-  useEffect(() => {
-    let isCancelled = false;
-
-    async function loadActiveBookings() {
-      try {
-        const nextActiveBookings = await getActiveBookings();
-        if (!isCancelled) setActiveBookings(nextActiveBookings);
-      } catch (error) {
-        if (!isCancelled) console.error("[RESERVA] could not load active bookings.", error);
-      }
-    }
-
-    void loadActiveBookings();
-    return () => {
-      isCancelled = true;
-    };
   }, []);
 
   // ── Handlers de calendario ────────────────────────────────────────────────
@@ -349,32 +320,34 @@ export default function BookingPage() {
     });
   }
 
-  async function handleActiveBookingAction(bookingKey: string, action: "confirm" | "cancel") {
-    const response = await fetch("/api/bookings/action", {
-      method: "POST",
-      cache: "no-store",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ bookingId: bookingKey, action }),
-    });
-
-    if (!response.ok) {
-      console.error("[RESERVA] active booking action was rejected.");
-      return;
-    }
-
-    try {
-      setActiveBookings(await getActiveBookings());
-    } catch (error) {
-      console.error("[RESERVA] could not refresh active bookings.", error);
-    }
-  }
-
   function handleConfirmActiveBooking(bookingKey: string) {
-    return handleActiveBookingAction(bookingKey, "confirm");
+    if (!isBookingCalendarKey(bookingKey)) return;
+
+    setBookings((previousBookings) => {
+      const bookingEntry = previousBookings.get(bookingKey);
+      if (!bookingEntry || bookingEntry.status !== "inscribed") return previousBookings;
+
+      const block = BASE_BLOCKS.find((candidate) => candidate.id === bookingEntry.blockId);
+      if (!block || !isConfirmationWindowActive(bookingEntry.bookingDate, block.startTime)) {
+        return previousBookings;
+      }
+
+      const nextBookings = new Map(previousBookings);
+      nextBookings.set(bookingKey, { ...bookingEntry, status: "confirmed" });
+      return nextBookings;
+    });
   }
 
   function handleCancelActiveBooking(bookingKey: string) {
-    return handleActiveBookingAction(bookingKey, "cancel");
+    if (!isBookingCalendarKey(bookingKey)) return;
+
+    setBookings((previousBookings) => {
+      const nextBookings = new Map(previousBookings);
+      nextBookings.delete(bookingKey);
+      return nextBookings;
+    });
+
+    if (bookingKey === dayKey) setSelectedId(null);
   }
 
   function handleGoProfile() {
