@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
-import { ThemeToggle } from "@/components/ThemeToggle";
 
 export default function TermsPage() {
   const [acceptanceError, setAcceptanceError] = useState(false);
@@ -37,7 +36,6 @@ export default function TermsPage() {
 
   return (
     <main className="relative flex min-h-full gusm-app-shell flex-col gap-8 px-8 py-12">
-      <ThemeToggle className="absolute top-4 right-4" />
       <header className="flex flex-col gap-3">
         <p className="text-sm tracking-[0.16em] text-accent uppercase">GYMU · versión 2</p>
         <h1 className="text-2xl font-semibold text-foreground">Términos y condiciones</h1>

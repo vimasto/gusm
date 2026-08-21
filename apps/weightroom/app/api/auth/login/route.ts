@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import * as z from "zod/v4";
 import { CREATE_SUPABASE_SERVER_CLIENT } from "@gusm/database/client";
 import { CREATE_SUPABASE_SERVICE_ROLE_CLIENT } from "@gusm/database/service-role";
-import { LOGIN_REQUEST_SCHEMA, type LoginRequest } from "@/lib/auth/login";
+import { LOGIN_REQUEST_SCHEMA, type LoginErrorCode, type LoginRequest } from "@/lib/auth/login";
 
 export const runtime = "nodejs";
 
@@ -12,22 +12,17 @@ const SANSANO_PROFILE_SCHEMA = z.object({
   rut: z.string().trim().min(1),
 });
 
+const SANSANO_ERROR_RESPONSE_SCHEMA = z.object({
+  error: z.string().trim().min(1).max(500),
+});
+
 type SansanoAuthSettings = {
   apiKey: string;
   baseUrl: URL;
   identityHmacKey: string;
 };
 
-function createErrorResponse(
-  status: number,
-  code:
-    | "account_disabled"
-    | "auth_upstream_unavailable"
-    | "invalid_credentials"
-    | "invalid_request"
-    | "rate_limited",
-  retryAfterSeconds?: number,
-) {
+function createErrorResponse(status: number, code: LoginErrorCode, retryAfterSeconds?: number) {
   const response = NextResponse.json(
     {
       code,
@@ -147,6 +142,22 @@ function getRetryAfterSeconds(response: Response) {
   return retryAfterSeconds;
 }
 
+function getKnownInstitutionalErrorCode(errorMessage: string | null): LoginErrorCode | null {
+  if (!errorMessage) return null;
+
+  const normalizedErrorMessage = errorMessage.toLocaleLowerCase("es-CL");
+
+  if (normalizedErrorMessage === "siga no entregó una ficha válida") {
+    return "institutional_profile_invalid";
+  } else if (normalizedErrorMessage === "respuesta inesperada de siga") {
+    return "institutional_response_invalid";
+  } else if (normalizedErrorMessage === "siga rechazó la sesión") {
+    return "institutional_session_rejected";
+  }
+
+  return null;
+}
+
 async function getSansanoProfile(loginRequest: LoginRequest, settings: SansanoAuthSettings) {
   try {
     const response = await fetch(new URL("/auth/profile", settings.baseUrl), {
@@ -166,8 +177,16 @@ async function getSansanoProfile(loginRequest: LoginRequest, settings: SansanoAu
     });
 
     if (!response.ok) {
+      const errorPayload: unknown = await response
+        .json()
+        .catch(function ignoreInvalidErrorResponse() {
+          return null;
+        });
+      const parsedErrorPayload = SANSANO_ERROR_RESPONSE_SCHEMA.safeParse(errorPayload);
+
       return {
         kind: "upstream_error" as const,
+        errorMessage: parsedErrorPayload.success ? parsedErrorPayload.data.error : null,
         retryAfterSeconds: getRetryAfterSeconds(response),
         status: response.status,
       };
@@ -206,6 +225,7 @@ async function provisionAppUser(
   identityHmac: string,
   userId: string,
   userName: string,
+  themePreference: "dark" | "light" | undefined,
   existingAppUser: { disabled_at: string | null; user_id: string } | null,
 ) {
   const supabase = CREATE_SUPABASE_SERVICE_ROLE_CLIENT();
@@ -221,7 +241,10 @@ async function provisionAppUser(
 
     const { error } = await supabase
       .from("app_user")
-      .update({ user_name: userName })
+      .update({
+        ...(themePreference ? { theme_preference: themePreference } : {}),
+        user_name: userName,
+      })
       .eq("user_id", userId);
 
     if (error) {
@@ -235,6 +258,7 @@ async function provisionAppUser(
     identity_hmac: identityHmac,
     user_id: userId,
     user_name: userName,
+    ...(themePreference ? { theme_preference: themePreference } : {}),
   });
 
   if (error) {
@@ -302,10 +326,24 @@ export async function POST(request: NextRequest) {
   const sansanoResult = await getSansanoProfile(parsedLoginRequest.data, settings);
 
   if (sansanoResult.kind === "upstream_error") {
-    if (sansanoResult.status === 401) {
+    const institutionalErrorCode = getKnownInstitutionalErrorCode(sansanoResult.errorMessage);
+
+    if (institutionalErrorCode) {
+      console.error("[LOGIN] Sansano Auth rejected the institutional request.", {
+        code: institutionalErrorCode,
+        status: sansanoResult.status,
+      });
+      const responseStatus =
+        sansanoResult.status === 502 || sansanoResult.status === 503 ? sansanoResult.status : 503;
+      return createErrorResponse(responseStatus, institutionalErrorCode);
+    } else if (sansanoResult.status === 401) {
       return createErrorResponse(401, "invalid_credentials");
     } else if (sansanoResult.status === 429) {
       return createErrorResponse(429, "rate_limited", sansanoResult.retryAfterSeconds);
+    } else if (sansanoResult.status === 502) {
+      return createErrorResponse(502, "institutional_response_invalid");
+    } else if (sansanoResult.status === 503) {
+      return createErrorResponse(503, "institutional_service_unavailable");
     }
 
     return createErrorResponse(503, "auth_upstream_unavailable");
@@ -340,6 +378,7 @@ export async function POST(request: NextRequest) {
       identityValues.databaseValue,
       generatedLink.user.id,
       formatBroadcastName(sansanoResult.profile.nombre),
+      parsedLoginRequest.data.themePreference,
       existingAppUser,
     );
 

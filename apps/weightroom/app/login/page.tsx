@@ -19,6 +19,7 @@ import {
   LOGIN_REQUEST_SCHEMA,
   type LoginRequest,
 } from "@/lib/auth/login";
+import type { ThemePreference } from "@/lib/theme";
 type LoginButtonStatus = "idle" | "loading" | "error_credentials" | "error_network" | "success";
 
 const SUBMIT_BUTTON_VARIANTS = cva(
@@ -26,11 +27,11 @@ const SUBMIT_BUTTON_VARIANTS = cva(
   {
     variants: {
       status: {
-        idle: "bg-accent text-neutral-950",
-        loading: "bg-accent/40 text-neutral-950/40",
-        error_credentials: "bg-accent text-neutral-950",
-        error_network: "bg-accent text-neutral-950",
-        success: "bg-accent/50 text-neutral-950/50",
+        idle: "bg-accent-fill text-accent-foreground",
+        loading: "bg-accent-fill/40 text-accent-foreground/40",
+        error_credentials: "bg-accent-fill text-accent-foreground",
+        error_network: "bg-accent-fill text-accent-foreground",
+        success: "bg-accent-fill/50 text-accent-foreground/50",
       },
     },
   },
@@ -39,6 +40,7 @@ const SUBMIT_BUTTON_VARIANTS = cva(
 export default function LoginPage() {
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [loginSucceeded, setLoginSucceeded] = useState(false);
+  const [loginThemePreference, setLoginThemePreference] = useState<ThemePreference | null>(null);
 
   const router = useRouter();
 
@@ -86,7 +88,10 @@ export default function LoginPage() {
         method: "POST",
         cache: "no-store",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(loginRequest),
+        body: JSON.stringify({
+          ...loginRequest,
+          ...(loginThemePreference ? { themePreference: loginThemePreference } : {}),
+        }),
       });
 
       if (response.status === 204) {
@@ -108,6 +113,37 @@ export default function LoginPage() {
         setError("root.credentials", {
           type: "server",
           message: "Correo o contraseña incorrectos.",
+        });
+      } else if (parsedError.success && parsedError.data.code === "institutional_profile_invalid") {
+        setError("root.network", {
+          type: "server",
+          message:
+            "El servidor no entregó una ficha institucional válida. Intenta nuevamente más tarde.",
+        });
+      } else if (
+        parsedError.success &&
+        parsedError.data.code === "institutional_response_invalid"
+      ) {
+        setError("root.network", {
+          type: "server",
+          message: "El servidor devolvió una respuesta inesperada. Intenta nuevamente más tarde.",
+        });
+      } else if (
+        parsedError.success &&
+        parsedError.data.code === "institutional_session_rejected"
+      ) {
+        setError("root.credentials", {
+          type: "server",
+          message: "El servidor rechazó la sesión. Verifica tus credenciales e intenta nuevamente.",
+        });
+      } else if (
+        parsedError.success &&
+        parsedError.data.code === "institutional_service_unavailable"
+      ) {
+        setError("root.network", {
+          type: "server",
+          message:
+            "El servidor institucional no está disponible. Puede estar caído o en mantenimiento. Intenta nuevamente más tarde.",
         });
       } else if (parsedError.success && parsedError.data.code === "rate_limited") {
         setError("root.network", {
@@ -136,7 +172,10 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-svh w-full justify-center bg-bg">
       <main className="relative flex min-h-svh gusm-app-shell flex-col items-center justify-center gap-12 px-8 py-12">
-        <ThemeToggle className="absolute top-4 right-4" />
+        <ThemeToggle
+          className="absolute top-4 right-4"
+          onThemePreferenceSelect={setLoginThemePreference}
+        />
         <header className="flex flex-col items-center gap-3">
           <div className="size-42">
             <LoginAnimalImage />

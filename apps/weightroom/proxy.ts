@@ -46,7 +46,7 @@ export const config = {
     "/reserva/:path*",
     "/perfil/:path*",
     "/qr/:path*",
-    "/sobrecupo/:path*",
+    "/bloque/:path*",
     "/configuracion/:path*",
   ],
 };
