@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 
 const TIMESTAMP_SCHEMA = z.string().refine((value) => !Number.isNaN(Date.parse(value)));
 const ISSUE_RESULT_SCHEMA = z.object({
-  state: z.enum(["ready", "arrived_too_late", "outside_window"]),
+  state: z.enum(["ready", "arrived_too_late", "no_current_booking", "outside_window"]),
   qr_token_id: z.string().uuid().nullable(),
   booking_date: z.string().date().nullable(),
   time_block_id: z.number().int().positive().nullable(),

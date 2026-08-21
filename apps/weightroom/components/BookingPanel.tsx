@@ -10,6 +10,7 @@ type ActionState =
   | "cancel"
   | "cancel_locked"
   | "confirm"
+  | "request_admission"
   | "full"
   | "blocked";
 type BannerState = "active" | "inactive" | "warning";
@@ -21,9 +22,12 @@ type BookingPanelProps = {
   selectedDate: Date;
   isBookingAvailable: boolean;
   isCancellationLocked: boolean;
+  isCurrentBlockAdmissionWindow: boolean;
+  isAdmissionRequested: boolean;
   onInscribe: () => void;
   onCancel: () => void;
   onConfirm: () => void;
+  onRequestAdmission: () => void;
 };
 
 export function BookingPanel({
@@ -33,9 +37,12 @@ export function BookingPanel({
   selectedDate,
   isBookingAvailable,
   isCancellationLocked,
+  isCurrentBlockAdmissionWindow,
+  isAdmissionRequested,
   onInscribe,
   onCancel,
   onConfirm,
+  onRequestAdmission,
 }: BookingPanelProps) {
   if (!selectedBlock) {
     return (
@@ -51,6 +58,8 @@ export function BookingPanel({
             onInscribe={onInscribe}
             onCancel={onCancel}
             onConfirm={onConfirm}
+            isAdmissionRequested={isAdmissionRequested}
+            onRequestAdmission={onRequestAdmission}
           />
         </div>
       </PanelShell>
@@ -68,6 +77,8 @@ export function BookingPanel({
     action = isConfirming ? "confirm" : isCancellationLocked ? "cancel_locked" : "cancel";
   } else if (hasOtherBooking) {
     action = "blocked";
+  } else if (isCurrentBlockAdmissionWindow) {
+    action = "request_admission";
   } else if (isFull) {
     action = "full";
   } else if (!isBookingAvailable) {
@@ -107,6 +118,8 @@ export function BookingPanel({
           onInscribe={onInscribe}
           onCancel={onCancel}
           onConfirm={onConfirm}
+          isAdmissionRequested={isAdmissionRequested}
+          onRequestAdmission={onRequestAdmission}
         />
       </div>
     </PanelShell>
@@ -226,6 +239,7 @@ const actionButtonVariants = cva(
         cancel: "border border-red-500/30 bg-red-500/5 text-red-500 hover:bg-red-500/10",
         cancel_locked: "cursor-not-allowed border border-red-500/20 bg-red-500/5 text-red-500/60",
         confirm: "border border-accent/60 bg-accent/15 text-accent hover:bg-accent/20",
+        request_admission: "border border-accent/60 bg-accent/15 text-accent hover:bg-accent/20",
         full: "cursor-not-allowed border border-divider bg-transparent text-dim",
         blocked: "cursor-not-allowed border border-accent/30 bg-accent/5 text-accent opacity-40",
       },
@@ -239,6 +253,11 @@ const ACTION_META: Record<ActionState, { icon: LucideIcon; label: string; isDisa
   cancel: { icon: X, label: "Cancelar reserva", isDisabled: false },
   cancel_locked: { icon: X, label: "Cancelación bloqueada", isDisabled: true },
   confirm: { icon: CheckCheck, label: "Confirmar asistencia", isDisabled: false },
+  request_admission: {
+    icon: AlertTriangle,
+    label: "Solicitar ingreso",
+    isDisabled: false,
+  },
   full: { icon: X, label: "Sin cupos disponibles", isDisabled: true },
   blocked: { icon: Check, label: "Inscribirse", isDisabled: true },
 };
@@ -248,10 +267,26 @@ type ActionButtonProps = {
   onInscribe: () => void;
   onCancel: () => void;
   onConfirm: () => void;
+  isAdmissionRequested: boolean;
+  onRequestAdmission: () => void;
 };
 
-function ActionButton({ state, onInscribe, onCancel, onConfirm }: ActionButtonProps) {
-  const { icon: Icon, label, isDisabled } = ACTION_META[state];
+function ActionButton({
+  state,
+  onInscribe,
+  onCancel,
+  onConfirm,
+  isAdmissionRequested,
+  onRequestAdmission,
+}: ActionButtonProps) {
+  const actionMeta = ACTION_META[state];
+  const isDisabled =
+    actionMeta.isDisabled || (state === "request_admission" && isAdmissionRequested);
+  const label =
+    state === "request_admission" && isAdmissionRequested
+      ? "Solicitud de ingreso enviada"
+      : actionMeta.label;
+  const Icon = actionMeta.icon;
 
   let handler: (() => void) | undefined;
   if (state === "inscribe") {
@@ -260,6 +295,8 @@ function ActionButton({ state, onInscribe, onCancel, onConfirm }: ActionButtonPr
     handler = onCancel;
   } else if (state === "confirm") {
     handler = onConfirm;
+  } else if (state === "request_admission") {
+    handler = onRequestAdmission;
   }
 
   return (

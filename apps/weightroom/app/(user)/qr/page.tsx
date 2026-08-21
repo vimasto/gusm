@@ -6,6 +6,7 @@ import { QRCodeSVG } from "qrcode.react";
 import * as z from "zod/v4";
 import { CheckCircle2, Clock3, RefreshCw, TriangleAlert, XCircle } from "lucide-react";
 import { CREATE_SUPABASE_BROWSER_CLIENT } from "@gusm/database/client";
+import { clearProfileCache } from "@/lib/profile-cache";
 import { UserTopBar } from "@/components/UserTopBar";
 
 const TIMESTAMP_SCHEMA = z.string().refine((value) => !Number.isNaN(Date.parse(value)));
@@ -19,6 +20,7 @@ const ISSUE_RESPONSE_SCHEMA = z.discriminatedUnion("state", [
     expiresAt: TIMESTAMP_SCHEMA,
   }),
   z.object({ state: z.literal("arrived_too_late") }),
+  z.object({ state: z.literal("no_current_booking") }),
   z.object({ state: z.literal("outside_window") }),
 ]);
 const STATUS_RESPONSE_SCHEMA = z.object({
@@ -43,6 +45,7 @@ type QrScreen =
       timeBlockId: number;
     }
   | { type: "arrived_too_late" }
+  | { type: "no_current_booking" }
   | { type: "outside_window" }
   | { type: "error" };
 type ScanResult = "checked_in" | "already_present" | "no_current_booking";
@@ -181,6 +184,7 @@ export default function CheckInQrPage() {
           statusResponse.data.state === "already_present" ||
           statusResponse.data.state === "no_current_booking"
         ) {
+          if (statusResponse.data.state === "checked_in") clearProfileCache();
           setScanResult(statusResponse.data.state);
         }
       } catch (error) {
@@ -208,6 +212,7 @@ export default function CheckInQrPage() {
       return;
     }
 
+    clearProfileCache();
     router.replace("/login");
   }
 
@@ -247,7 +252,7 @@ export default function CheckInQrPage() {
               </p>
               <h1 className="mt-2 text-2xl font-semibold text-foreground">Escanea tu código QR</h1>
               <p className="mt-2 max-w-72 text-sm leading-6 text-muted">
-                Muéstralo al lector de la sala durante los primeros 15 minutos del bloque.
+                Muéstralo al lector de la sala antes de que el código venza.
               </p>
 
               <div className="mt-8 rounded-3xl border border-accent/40 bg-accent p-4 shadow-accent">
@@ -255,8 +260,8 @@ export default function CheckInQrPage() {
                   value={screen.payload}
                   size={272}
                   level="M"
-                  bgColor="#f5b400"
-                  fgColor="#060606"
+                  bgColor="#FFFFFF"
+                  fgColor="#004B85"
                   includeMargin
                   aria-label="Código QR para registrar asistencia"
                 />
@@ -291,8 +296,18 @@ export default function CheckInQrPage() {
           {screen.type === "arrived_too_late" && (
             <QrNotice
               icon={TriangleAlert}
-              title="Llegaste demasiado tarde"
-              description="Comunícate con el staff por disponibilidad de sobrecupo."
+              title="Has llegado tarde"
+              description="Conversa con el staff para solicitar autorización presencial."
+              actionLabel="Volver a reservas"
+              onAction={() => router.push("/reserva")}
+            />
+          )}
+
+          {screen.type === "no_current_booking" && (
+            <QrNotice
+              icon={XCircle}
+              title="No tienes una reserva vigente"
+              description="Revisa tus reservas o conversa con el staff si estás en la sala."
               actionLabel="Volver a reservas"
               onAction={() => router.push("/reserva")}
             />

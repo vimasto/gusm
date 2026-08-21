@@ -62,6 +62,33 @@ export type Database = {
         }
         Relationships: []
       }
+      staff_block_admission_request: {
+        Row: {
+          booking_date: string
+          expires_at: string
+          requested_at: string
+          staff_block_admission_request_id: string
+          time_block_id: number
+          user_id: string
+        }
+        Insert: {
+          booking_date: string
+          expires_at: string
+          requested_at?: string
+          staff_block_admission_request_id?: string
+          time_block_id: number
+          user_id: string
+        }
+        Update: {
+          booking_date?: string
+          expires_at?: string
+          requested_at?: string
+          staff_block_admission_request_id?: string
+          time_block_id?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_body_measurement: {
         Row: {
           height_cm: number | null
@@ -159,6 +186,13 @@ export type Database = {
         Args: { p_block: number; p_date: string }
         Returns: string
       }
+      current_active_time_block: {
+        Args: never
+        Returns: {
+          booking_date: string
+          time_block_id: number
+        }[]
+      }
       current_check_in_qr_window: {
         Args: never
         Returns: {
@@ -177,6 +211,26 @@ export type Database = {
       is_active_current_user: { Args: never; Returns: boolean }
       is_admin: { Args: never; Returns: boolean }
       is_staff: { Args: never; Returns: boolean }
+      require_current_staff: { Args: { p_user_id: string }; Returns: undefined }
+      require_current_terms_user: {
+        Args: { p_user_id: string }
+        Returns: Database["public"]["Tables"]["app_user"]["Row"]
+        SetofOptions: {
+          from: "*"
+          to: "app_user"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      require_open_current_check_in_window: {
+        Args: never
+        Returns: {
+          block_starts_at: string
+          booking_date: string
+          expires_at: string
+          time_block_id: number
+        }[]
+      }
     }
     Enums: {
       check_in_qr_scan_result:
@@ -201,6 +255,7 @@ export type Database = {
           identity_hmac: string
           role: Database["public"]["Enums"]["app_role"]
           terms_accepted_at: string | null
+          theme_preference: string
           updated_at: string
           user_id: string
           user_name: string
@@ -213,6 +268,7 @@ export type Database = {
           identity_hmac: string
           role?: Database["public"]["Enums"]["app_role"]
           terms_accepted_at?: string | null
+          theme_preference?: string
           updated_at?: string
           user_id: string
           user_name: string
@@ -225,6 +281,7 @@ export type Database = {
           identity_hmac?: string
           role?: Database["public"]["Enums"]["app_role"]
           terms_accepted_at?: string | null
+          theme_preference?: string
           updated_at?: string
           user_id?: string
           user_name?: string
@@ -242,6 +299,7 @@ export type Database = {
       booking: {
         Row: {
           absent_at: string | null
+          admission_source: Database["public"]["Enums"]["booking_admission_source"]
           booked_at: string
           booking_date: string
           booking_id: string
@@ -249,6 +307,7 @@ export type Database = {
           confirmed_at: string | null
           created_at: string
           is_overcapacity: boolean
+          late_qr_authorized_at: string | null
           present_at: string | null
           qr_scanned_at: string | null
           status: Database["public"]["Enums"]["booking_status"]
@@ -258,6 +317,7 @@ export type Database = {
         }
         Insert: {
           absent_at?: string | null
+          admission_source?: Database["public"]["Enums"]["booking_admission_source"]
           booked_at?: string
           booking_date: string
           booking_id?: string
@@ -265,6 +325,7 @@ export type Database = {
           confirmed_at?: string | null
           created_at?: string
           is_overcapacity?: boolean
+          late_qr_authorized_at?: string | null
           present_at?: string | null
           qr_scanned_at?: string | null
           status?: Database["public"]["Enums"]["booking_status"]
@@ -274,6 +335,7 @@ export type Database = {
         }
         Update: {
           absent_at?: string | null
+          admission_source?: Database["public"]["Enums"]["booking_admission_source"]
           booked_at?: string
           booking_date?: string
           booking_id?: string
@@ -281,6 +343,7 @@ export type Database = {
           confirmed_at?: string | null
           created_at?: string
           is_overcapacity?: boolean
+          late_qr_authorized_at?: string | null
           present_at?: string | null
           qr_scanned_at?: string | null
           status?: Database["public"]["Enums"]["booking_status"]
@@ -532,10 +595,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      cancel_booking: {
-        Args: { p_booking_id: string }
+      admit_current_staff_block_user: {
+        Args: {
+          p_actor_user_id: string
+          p_admission_source: Database["public"]["Enums"]["booking_admission_source"]
+          p_target_user_id: string
+        }
         Returns: {
           absent_at: string | null
+          admission_source: Database["public"]["Enums"]["booking_admission_source"]
           booked_at: string
           booking_date: string
           booking_id: string
@@ -543,6 +611,34 @@ export type Database = {
           confirmed_at: string | null
           created_at: string
           is_overcapacity: boolean
+          late_qr_authorized_at: string | null
+          present_at: string | null
+          qr_scanned_at: string | null
+          status: Database["public"]["Enums"]["booking_status"]
+          time_block_id: number
+          updated_at: string
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "booking"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      cancel_booking: {
+        Args: { p_booking_id: string }
+        Returns: {
+          absent_at: string | null
+          admission_source: Database["public"]["Enums"]["booking_admission_source"]
+          booked_at: string
+          booking_date: string
+          booking_id: string
+          cancelled_at: string | null
+          confirmed_at: string | null
+          created_at: string
+          is_overcapacity: boolean
+          late_qr_authorized_at: string | null
           present_at: string | null
           qr_scanned_at: string | null
           status: Database["public"]["Enums"]["booking_status"]
@@ -561,6 +657,7 @@ export type Database = {
         Args: { p_booking_id: string }
         Returns: {
           absent_at: string | null
+          admission_source: Database["public"]["Enums"]["booking_admission_source"]
           booked_at: string
           booking_date: string
           booking_id: string
@@ -568,6 +665,7 @@ export type Database = {
           confirmed_at: string | null
           created_at: string
           is_overcapacity: boolean
+          late_qr_authorized_at: string | null
           present_at: string | null
           qr_scanned_at: string | null
           status: Database["public"]["Enums"]["booking_status"]
@@ -593,6 +691,7 @@ export type Database = {
         Args: { p_booking_date: string; p_time_block_id: number }
         Returns: {
           absent_at: string | null
+          admission_source: Database["public"]["Enums"]["booking_admission_source"]
           booked_at: string
           booking_date: string
           booking_id: string
@@ -600,6 +699,7 @@ export type Database = {
           confirmed_at: string | null
           created_at: string
           is_overcapacity: boolean
+          late_qr_authorized_at: string | null
           present_at: string | null
           qr_scanned_at: string | null
           status: Database["public"]["Enums"]["booking_status"]
@@ -644,6 +744,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      expire_staff_block_admission_requests: { Args: never; Returns: number }
       expire_unconfirmed_bookings: { Args: never; Returns: number }
       finalize_due_attendance: { Args: never; Returns: number }
       get_check_in_qr_status: {
@@ -651,6 +752,31 @@ export type Database = {
         Returns: {
           scanned_at: string
           state: string
+        }[]
+      }
+      get_current_staff_block_candidates: {
+        Args: { p_actor_user_id: string }
+        Returns: {
+          admission_source: Database["public"]["Enums"]["booking_admission_source"]
+          booking_status: Database["public"]["Enums"]["booking_status"]
+          is_overcapacity: boolean
+          requested_at: string
+          staff_block_admission_request_id: string
+          user_id: string
+          user_name: string
+        }[]
+      }
+      get_current_staff_block_context: {
+        Args: { p_actor_user_id: string }
+        Returns: {
+          block_starts_at: string
+          booking_date: string
+          expires_at: string
+          overcapacity_count: number
+          overcapacity_max_above: number
+          standard_capacity: number
+          standard_count: number
+          time_block_id: number
         }[]
       }
       get_profile_monthly_attendance: {
@@ -673,6 +799,7 @@ export type Database = {
           reported_sex: string
           role: Database["public"]["Enums"]["app_role"]
           streak_weeks: number
+          theme_preference: string
           user_name: string
           weight_kg: number
         }[]
@@ -687,6 +814,33 @@ export type Database = {
           state: string
           time_block_id: number
         }[]
+      }
+      reauthorize_current_staff_block_qr: {
+        Args: { p_actor_user_id: string; p_target_user_id: string }
+        Returns: {
+          absent_at: string | null
+          admission_source: Database["public"]["Enums"]["booking_admission_source"]
+          booked_at: string
+          booking_date: string
+          booking_id: string
+          cancelled_at: string | null
+          confirmed_at: string | null
+          created_at: string
+          is_overcapacity: boolean
+          late_qr_authorized_at: string | null
+          present_at: string | null
+          qr_scanned_at: string | null
+          status: Database["public"]["Enums"]["booking_status"]
+          time_block_id: number
+          updated_at: string
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "booking"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       record_profile_data: {
         Args: {
@@ -715,6 +869,30 @@ export type Database = {
         Args: { p_iso_weekday: number; p_time_block_id: number }
         Returns: boolean
       }
+      request_current_block_admission: {
+        Args: { p_user_id: string }
+        Returns: {
+          booking_date: string
+          expires_at: string
+          time_block_id: number
+        }[]
+      }
+      search_current_staff_block_users: {
+        Args: {
+          p_actor_user_id: string
+          p_institutional_username_prefix: string
+        }
+        Returns: {
+          booking_status: Database["public"]["Enums"]["booking_status"]
+          institutional_username: string
+          user_id: string
+          user_name: string
+        }[]
+      }
+      update_current_user_theme_preference: {
+        Args: { p_actor_user_id: string; p_theme_preference: string }
+        Returns: string
+      }
       upsert_institutional_identity: {
         Args: { p_institutional_username: string; p_user_id: string }
         Returns: undefined
@@ -722,6 +900,10 @@ export type Database = {
     }
     Enums: {
       app_role: "student" | "u_staff" | "gym_staff" | "admin"
+      booking_admission_source:
+        | "self_service"
+        | "staff_exception"
+        | "staff_overcapacity"
       booking_event_type:
         | "reserved"
         | "reactivated"
@@ -879,6 +1061,11 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["student", "u_staff", "gym_staff", "admin"],
+      booking_admission_source: [
+        "self_service",
+        "staff_exception",
+        "staff_overcapacity",
+      ],
       booking_event_type: [
         "reserved",
         "reactivated",

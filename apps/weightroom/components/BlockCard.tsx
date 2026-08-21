@@ -10,6 +10,8 @@ export type UserBookingStatus = "none" | "inscribed" | "confirming" | "confirmed
 
 export type UserBlock = {
   id: number;
+  startTime: string;
+  endTime: string;
   timeRange: string;
   taken: number;
   userStatus: UserBookingStatus;
@@ -20,6 +22,8 @@ type BlockCardProps = {
   totalSpots: number;
   isSelected: boolean;
   isBookingDateAvailable: boolean;
+  isTimeBlockPast: boolean;
+  isCurrentBlockAdmissionWindow: boolean;
   onSelect: () => void;
 };
 
@@ -43,13 +47,15 @@ export function BlockCard({
   totalSpots,
   isSelected,
   isBookingDateAvailable,
+  isTimeBlockPast,
+  isCurrentBlockAdmissionWindow,
   onSelect,
 }: BlockCardProps) {
   const fillPct = calcFillPct(block.taken, totalSpots);
   const isFull = block.taken >= totalSpots;
   const isUserBlock = block.userStatus !== "none";
   const isDateLocked = !isBookingDateAvailable;
-  const isFullLocked = isFull && !isUserBlock;
+  const isFullLocked = isFull && !isUserBlock && !isCurrentBlockAdmissionWindow;
   const isLocked = isDateLocked || isFullLocked;
 
   return (
@@ -70,6 +76,7 @@ export function BlockCard({
           className={clsx(
             "font-mono text-base tracking-wider",
             getTimeTextClass(isUserBlock, isSelected),
+            isTimeBlockPast && "line-through",
           )}
         >
           {block.timeRange}

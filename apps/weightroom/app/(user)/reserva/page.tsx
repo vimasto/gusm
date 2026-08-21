@@ -17,6 +17,8 @@ import {
 import type { ActiveBooking } from "@/components/ActiveBookingsPanel";
 import { BlockCard, type UserBlock, type UserBookingStatus } from "@/components/BlockCard";
 import { BookingPanel } from "@/components/BookingPanel";
+import { clearProfileCache } from "@/lib/profile-cache";
+import { applyThemePreference } from "@/lib/theme";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MOCK DATA
@@ -26,6 +28,7 @@ const CURRENT_USER_SCHEMA = z.object({
   userName: z.string().min(1),
   role: z.enum(["student", "u_staff", "gym_staff", "admin"]),
   streakWeeks: z.number().int().nonnegative(),
+  themePreference: z.enum(["dark", "light"]),
 });
 
 type CurrentUser = z.infer<typeof CURRENT_USER_SCHEMA>;
@@ -34,15 +37,15 @@ type CurrentUser = z.infer<typeof CURRENT_USER_SCHEMA>;
 const MOCK_TOTAL_SPOTS = 15;
 
 const BASE_BLOCKS = [
-  { id: 1, timeRange: "08:50 · 09:40", startTime: "08:50" },
-  { id: 2, timeRange: "09:40 · 11:05", startTime: "09:40" },
-  { id: 3, timeRange: "11:05 · 12:15", startTime: "11:05" },
-  { id: 4, timeRange: "12:15 · 13:40", startTime: "12:15" },
-  { id: 5, timeRange: "14:40 · 15:50", startTime: "14:40" },
-  { id: 6, timeRange: "15:50 · 17:15", startTime: "15:50" },
-  { id: 7, timeRange: "17:15 · 18:40", startTime: "17:15" },
-  { id: 8, timeRange: "18:40 · 19:40", startTime: "18:40" },
-  { id: 9, timeRange: "19:40 · 21:05", startTime: "19:40" },
+  { id: 1, timeRange: "08:50 · 09:40", startTime: "08:50", endTime: "09:40" },
+  { id: 2, timeRange: "09:40 · 11:05", startTime: "09:40", endTime: "11:05" },
+  { id: 3, timeRange: "11:05 · 12:15", startTime: "11:05", endTime: "12:15" },
+  { id: 4, timeRange: "12:15 · 13:40", startTime: "12:15", endTime: "13:40" },
+  { id: 5, timeRange: "14:40 · 15:50", startTime: "14:40", endTime: "15:50" },
+  { id: 6, timeRange: "15:50 · 17:15", startTime: "15:50", endTime: "17:15" },
+  { id: 7, timeRange: "17:15 · 18:40", startTime: "17:15", endTime: "18:40" },
+  { id: 8, timeRange: "18:40 · 19:40", startTime: "18:40", endTime: "19:40" },
+  { id: 9, timeRange: "19:40 · 21:05", startTime: "19:40", endTime: "21:05" },
 ] as const;
 
 const SANTIAGO_TIME_FORMATTER = new Intl.DateTimeFormat("en-CA", {
@@ -122,13 +125,36 @@ function isFinalHourBeforeBlock(date: Date, startTime: string): boolean {
   return nowMinutes >= startMinutes - 60 && nowMinutes < startMinutes;
 }
 
+function isCurrentBlockAdmissionWindow(date: Date, startTime: string, endTime: string): boolean {
+  if (!isSameDay(date, getSantiagoToday())) return false;
+
+  const [startHourText, startMinuteText] = startTime.split(":");
+  const [endHourText, endMinuteText] = endTime.split(":");
+  if (
+    startHourText === undefined ||
+    startMinuteText === undefined ||
+    endHourText === undefined ||
+    endMinuteText === undefined
+  ) {
+    return false;
+  }
+
+  const startMinutes = Number(startHourText) * 60 + Number(startMinuteText);
+  const endMinutes = Number(endHourText) * 60 + Number(endMinuteText);
+  const nowParts = SANTIAGO_TIME_FORMATTER.formatToParts(new Date());
+  const nowMinutes = getTimePart(nowParts, "hour") * 60 + getTimePart(nowParts, "minute");
+
+  return nowMinutes >= startMinutes && nowMinutes < endMinutes;
+}
+
 function isConfirmedBookingCancellationLocked(date: Date, startTime: string): boolean {
   return isFinalHourBeforeBlock(date, startTime);
 }
 
-function isStandardBookingAvailable(date: Date, startTime: string): boolean {
-  if (!isBookingDateAvailable(date)) return false;
-  if (!isSameDay(date, getSantiagoToday())) return true;
+function isTimeBlockPast(date: Date, startTime: string): boolean {
+  const today = getSantiagoToday();
+  if (date < today) return true;
+  if (date > today) return false;
 
   const [startHourText, startMinuteText] = startTime.split(":");
   if (startHourText === undefined || startMinuteText === undefined) return false;
@@ -137,7 +163,11 @@ function isStandardBookingAvailable(date: Date, startTime: string): boolean {
   const nowParts = SANTIAGO_TIME_FORMATTER.formatToParts(new Date());
   const nowMinutes = getTimePart(nowParts, "hour") * 60 + getTimePart(nowParts, "minute");
 
-  return nowMinutes < startMinutes;
+  return nowMinutes >= startMinutes;
+}
+
+function isStandardBookingAvailable(date: Date, startTime: string): boolean {
+  return isBookingDateAvailable(date) && !isTimeBlockPast(date, startTime);
 }
 
 function getDefaultCalendarSelection() {
@@ -167,6 +197,7 @@ export default function BookingPage() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [bookings, setBookings] = useState<Map<BookingCalendarKey, BookingEntry>>(new Map());
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [isAdmissionRequested, setIsAdmissionRequested] = useState(false);
 
   const dayKey = getBookingCalendarKey(weekOffset, dayIdx);
   const booking = bookings.get(dayKey) ?? null;
@@ -205,6 +236,14 @@ export default function BookingPage() {
     selectedTimeBlock !== undefined &&
     selectedTimeBlock !== null &&
     isFinalHourBeforeBlock(selectedDate, selectedTimeBlock.startTime);
+  const isSelectedBlockAdmissionWindow =
+    selectedTimeBlock !== undefined &&
+    selectedTimeBlock !== null &&
+    isCurrentBlockAdmissionWindow(
+      selectedDate,
+      selectedTimeBlock.startTime,
+      selectedTimeBlock.endTime,
+    );
   // Se mantiene en la misma fuente mock que los bloques hasta conectar create_booking.
   const activeBookings = useMemo<ActiveBooking[]>(() => {
     const result: ActiveBooking[] = [];
@@ -250,6 +289,7 @@ export default function BookingPage() {
           throw new Error("Current user response is invalid.");
         }
 
+        applyThemePreference(parsedCurrentUser.data.themePreference);
         setCurrentUser(parsedCurrentUser.data);
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") return;
@@ -266,14 +306,21 @@ export default function BookingPage() {
 
   function handleSelectDay(index: number) {
     setDayIdx(index);
+    setIsAdmissionRequested(false);
     const nextBooking = bookings.get(getBookingCalendarKey(weekOffset, index));
     setSelectedId(nextBooking ? nextBooking.blockId : null);
+  }
+
+  function handleSelectBlock(blockId: number) {
+    setSelectedId(blockId);
+    setIsAdmissionRequested(false);
   }
 
   function handleWeekChange(offset: number) {
     const clamped = Math.max(MIN_WEEK_OFFSET, Math.min(MAX_WEEK_OFFSET, offset));
     const nextDayIndex = clamped < 0 ? 0 : getWeekDates(clamped).findIndex(isBookingDateAvailable);
     setWeekOffset(clamped);
+    setIsAdmissionRequested(false);
     setDayIdx(nextDayIndex);
     const nextBooking = bookings.get(getBookingCalendarKey(clamped, nextDayIndex));
     setSelectedId(nextBooking ? nextBooking.blockId : null);
@@ -281,6 +328,7 @@ export default function BookingPage() {
 
   function handleGoToday() {
     setWeekOffset(defaultCalendarSelection.weekOffset);
+    setIsAdmissionRequested(false);
     setDayIdx(defaultCalendarSelection.dayIndex);
     const nextBooking = bookings.get(
       getBookingCalendarKey(defaultCalendarSelection.weekOffset, defaultCalendarSelection.dayIndex),
@@ -318,6 +366,19 @@ export default function BookingPage() {
       next.set(dayKey, { ...booking, status: "confirmed" });
       return next;
     });
+  }
+
+  async function handleRequestAdmission() {
+    if (!isSelectedBlockAdmissionWindow || isAdmissionRequested) return;
+
+    try {
+      const response = await fetch("/api/block/request", { method: "POST" });
+      if (!response.ok) throw new Error("Admission request was rejected.");
+
+      setIsAdmissionRequested(true);
+    } catch (error) {
+      console.error("[RESERVA] current-block admission request failed.", error);
+    }
   }
 
   function handleConfirmActiveBooking(bookingKey: string) {
@@ -358,6 +419,10 @@ export default function BookingPage() {
     router.push("/qr");
   }
 
+  function handleGoCurrentBlock() {
+    router.push("/bloque");
+  }
+
   async function handleSignOut() {
     const supabase = CREATE_SUPABASE_BROWSER_CLIENT();
     const { error } = await supabase.auth.signOut();
@@ -367,6 +432,7 @@ export default function BookingPage() {
       return;
     }
 
+    clearProfileCache();
     router.replace("/login");
   }
 
@@ -386,14 +452,13 @@ export default function BookingPage() {
           onGoToday={handleGoToday}
           onGoProfile={handleGoProfile}
           onGoCheckIn={handleGoCheckIn}
+          onGoOvercapacity={handleGoCurrentBlock}
           onSignOut={handleSignOut}
           activeBookings={activeBookings}
           onConfirmBooking={handleConfirmActiveBooking}
           onCancelBooking={handleCancelActiveBooking}
+          weekSelector={<WeekIndicator weekOffset={weekOffset} onWeekChange={handleWeekChange} />}
         />
-
-        {/* ── Indicador de semana ────────────────────────────────────── */}
-        <WeekIndicator weekOffset={weekOffset} onWeekChange={handleWeekChange} />
 
         {/* ── Lista de bloques scrolleable ──────────────────────────── */}
         <div className="flex flex-1 flex-col gap-2 overflow-y-auto overscroll-contain px-4 py-3">
@@ -404,7 +469,13 @@ export default function BookingPage() {
               totalSpots={MOCK_TOTAL_SPOTS}
               isSelected={block.id === selectedId}
               isBookingDateAvailable={isSelectedDateAvailable}
-              onSelect={() => setSelectedId(block.id)}
+              isTimeBlockPast={isTimeBlockPast(selectedDate, block.startTime)}
+              isCurrentBlockAdmissionWindow={isCurrentBlockAdmissionWindow(
+                selectedDate,
+                block.startTime,
+                block.endTime,
+              )}
+              onSelect={() => handleSelectBlock(block.id)}
             />
           ))}
           <div className="h-2" />
@@ -418,9 +489,12 @@ export default function BookingPage() {
           selectedDate={selectedDate}
           isBookingAvailable={isSelectedBookingAvailable}
           isCancellationLocked={isSelectedCancellationLocked}
+          isCurrentBlockAdmissionWindow={isSelectedBlockAdmissionWindow}
+          isAdmissionRequested={isAdmissionRequested}
           onInscribe={handleInscribe}
           onCancel={handleCancel}
           onConfirm={handleConfirm}
+          onRequestAdmission={handleRequestAdmission}
         />
       </div>
     </div>

@@ -7,7 +7,7 @@ Este archivo es la referencia persistente del repositorio. Las instrucciones dir
 - GYMU es una PWA única de gestión y reserva de la Sala de Musculación UTFSM Concepción. La marca visible siempre es `GYMU`; los identificadores técnicos históricos `gusm` y `@gusm` se conservan hasta planificar una migración separada.
 - La única aplicación vigente es `apps/weightroom`, paquete `@gusm/weightroom`, Next.js 16 App Router, sin `src/` y alias `@/* -> ./*`.
 - Los grupos `(user)`, `(staff)` y `(admin)` son route groups de la misma app, no aplicaciones independientes.
-- Rutas públicas de producto: `/login`, `/reserva`, `/en-vivo`, `/qr`, `/perfil`, `/sobrecupo` y `/configuracion`.
+- Rutas públicas de producto: `/login`, `/reserva`, `/en-vivo`, `/qr`, `/perfil`, `/bloque` y `/configuracion`.
 - Roles acumulativos: `admin` incluye `gym_staff`; `gym_staff` incluye las capacidades de usuario; `student` y `u_staff` usan las rutas de usuario. `student` es el default; `u_staff` queda limitado a un bloque.
 - Los bloques horarios fijos son: 1) 08:50-09:40, 2) 09:40-11:05, 3) 11:05-12:15, 4) 12:15-13:40, 5) 14:40-15:50, 6) 15:50-17:15, 7) 17:15-18:40, 8) 18:40-19:40 y 9) 19:40-21:05.
 - El bloque 7 es exclusivo para `u_staff` y los roles acumulativos `gym_staff` y `admin`. Un `u_staff` solo puede reservar su bloque asignado; los roles superiores pueden reservar el bloque 7 aunque no tengan `allowed_time_block_id`.
@@ -15,9 +15,12 @@ Este archivo es la referencia persistente del repositorio. Las instrucciones dir
 
 ## Reserva y asistencia
 
-- `is_overcapacity` es un booleano persistente de `booking`, decidido por `gym_staff`; nunca se calcula por posición ni por una view.
-- Bajo la capacidad normal, el usuario reserva directamente. Al alcanzarla, staff autoriza excepcionalmente y el usuario ejecuta el mismo submit/UI de reserva; la reserva queda flageada como sobrecupo.
-- Staff autoriza, el estudiante ejecuta. Staff nunca reserva en nombre de otro usuario.
+- `is_overcapacity` es un booleano persistente de `booking`, decidido por `gym_staff`; nunca se calcula por posición ni por una view. Solo es `true` cuando una admisión excede físicamente la capacidad estándar; toda reserva normal y toda excepción que aún cabe en cupo estándar tiene `false`.
+- `booking.admission_source` es la procedencia auditable mínima: `self_service` para la reserva ordinaria, `staff_exception` para una admisión presencial dentro de capacidad y `staff_overcapacity` para una admisión que excede capacidad. La constraint exige que solo `staff_overcapacity` use `is_overcapacity = true`.
+- Bajo la capacidad normal, el usuario reserva directamente. Durante cualquier minuto del bloque vigente, `gym_staff` o `admin` puede intervenir solo desde `/bloque`: una `staff_exception` crea o reactiva una fila `confirmed` y registra el warning inmutable `unbooked_attendance`; una `staff_overcapacity` exige que ya no exista capacidad estándar y respeta `overcapacity_max_above`. Ambas habilitan un QR tardío por cinco minutos desde `late_qr_authorized_at`.
+- `confirmed_at` conserva el instante original en que la reserva llegó a `confirmed`; una reautorización de QR nunca lo sobrescribe. `late_qr_authorized_at` registra la última autorización excepcional de QR y limita su emisión a cinco minutos. Cada reautorización también queda en `booking_event` con actor y timestamp, por lo que el análisis temporal conserva tanto el hecho original como todas las intervenciones posteriores.
+- Un usuario sin reserva puede pulsar temporalmente “Solicitar ingreso” desde `/reserva` mientras el bloque esté en curso. Esto crea una señal privada por usuario/bloque que deja de tener efecto al final del bloque y un cron elimina; no es reserva, no crea `confirmed`, no consume capacidad y no habilita QR. Staff debe verificar presencia y ejecutar la acción en `/bloque`. Repetir la solicitud no extiende el vencimiento ni crea filas adicionales.
+- No existe todavía una penalización automática asociada a `unbooked_attendance`: el warning es el fundamento auditable para definirla después, con umbral, duración y efecto explícitos.
 - `UNIQUE(user_id, time_block_id, booking_date)` evita duplicados. La reserva usa lock transaccional por fecha y bloque para evitar carreras.
 - Estados: `reserved`, `confirmed`, `present`, `absent`, `cancelled`.
 - `cancelled -> reserved` está permitido antes del inicio, reactivando la misma fila y revalidando reglas y capacidad.
@@ -47,13 +50,21 @@ Este archivo es la referencia persistente del repositorio. Las instrucciones dir
 - `/perfil` no expone el esquema `private` al navegador: sus Route Handlers llaman únicamente RPCs `SECURITY DEFINER` concedidas a `service_role`, que validan el actor, objetivo y aceptación vigente. La lectura devuelve solo la revisión y medición más recientes; una escritura agrega una revisión únicamente si el valor cambió.
 - El calendario mensual de perfil muestra `present` y `absent`, incluidos sábado y domingo como celdas visuales. La racha cuenta semanas consecutivas con al menos una asistencia; mientras aún no haya asistencia en la semana actual, conserva la racha que terminó la semana anterior.
 - QR: `/qr` emite un token opaco, aleatorio y de un uso. El backend genera el valor, persiste exclusivamente SHA-256, lo vincula a una fecha y bloque, y lo renueva cada 45 segundos. Nunca derivar QR desde RUT, HMAC u otros datos de identidad.
-- El QR solo se emite y acepta desde el inicio hasta `inicio_del_bloque + 15 min`, en `America/Santiago`. El `qr_scanned_at` debe pertenecer a esa misma ventana y bloque: una reserva `confirmed` escaneada antes de su inicio no registra asistencia. Tras esa ventana, una reserva `absent` muestra: “Llegaste demasiado tarde. Comunícate con el staff por disponibilidad de sobrecupo.”, sin emitir QR.
+- El QR ordinario solo se emite y acepta desde el inicio hasta `inicio_del_bloque + 15 min`, en `America/Santiago`. Pasado ese límite, `/qr` muestra “Has llegado tarde. Conversa con el staff” sin emitir token, salvo autorización presencial de staff: una nueva `staff_exception` o `staff_overcapacity`, o la reautorización de una reserva ya `confirmed`, actualiza `late_qr_authorized_at` y habilita QR por cinco minutos sin alterar `confirmed_at`. El QR tardío nunca extiende el bloque ni funciona tras su término. La procedencia de admisión no se expone en la UI del estudiante.
 - El equipo del gimnasio abre `/qr/escanear` bajo una sesión vigente de `gym_staff` o `admin`. El Zebra USB opera como HID Keyboard y envía el payload QR seguido de Enter; no implementar cámara, Web Bluetooth, Web Serial ni SDK de Zebra en la PWA. El RPC sigue siendo la autoridad de rol y consumo aunque la UI oculte la estación a otros roles. Si se incorpora una estación ESP32 como canal principal, `/qr/escanear` y su endpoint se mantienen como fallback operativo ante crash, reinicio, fallo de red o recuperación de memoria del dispositivo.
 - Al consumir un QR: `confirmed -> present` y se escriben `present_at`, `qr_scanned_at` y `booking_event.qr_check_in`; `cancelled`, `reserved`, `absent` o ausencia de reserva responden como “no tienes reserva vigente”; `present` informa asistencia ya registrada. Todo intento válido consume el token y los reintentos devuelven token ya usado.
 - `live_occupancy` expone solo nombre, bloque, fecha y posición. Nunca RUT, correo, IDs, warnings, autorizaciones ni ausencias.
 - Realtime emite invalidaciones privadas por fecha/bloque, no cambios crudos de `booking`.
 - Fechas y bloques se interpretan con `America/Santiago`, nunca con la zona del navegador.
 - La base rechaza reservas de sábados y domingos; el calendario de perfil igualmente muestra los siete días para consistencia visual.
+
+## Notificaciones push pendientes
+
+- No implementar todavía Service Worker, permisos, suscripciones Web Push, extensiones `http`/`pg_net`, triggers, cron, tablas ni endpoints de notificación. La decisión depende del host productivo final de la PWA, ya sea Vercel o infraestructura de la Universidad.
+- El origen HTTPS público estable define el alcance del Service Worker y de las suscripciones de los dispositivos. Un cambio posterior de host u origen obliga a registrar nuevamente las suscripciones; decidirlo antes evita migraciones operativas innecesarias.
+- Cuando el host esté decidido, el diseño aprobado usa `pg_net`, no `http`: un cron/outbox detecta reservas dentro del momento de aviso de la ventana de confirmación y llama asíncronamente a un endpoint interno del backend. No usar trigger `on insert`, porque el evento depende del tiempo relativo al bloque y no de una inserción.
+- El endpoint interno se protegerá con autenticación de servicio y secretos server-only; enviará Web Push con VAPID. La tabla futura almacena una suscripción por dispositivo (`endpoint`, `p256dh`, `auth`) y nunca credenciales Supabase privilegiadas en el navegador.
+- En iOS, Web Push requiere la PWA instalada en pantalla de inicio y una versión compatible; Android permite el flujo habitual. La PWA debe degradar sin error si el permiso se deniega o el dispositivo no soporta push.
 
 ## Estación de asistencia QR y contingencia
 
