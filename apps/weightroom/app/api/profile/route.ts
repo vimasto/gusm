@@ -6,6 +6,7 @@ import { CREATE_SUPABASE_SERVICE_ROLE_CLIENT } from "@gusm/database/service-role
 export const runtime = "nodejs";
 
 const PROFILE_MONTH_SCHEMA = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
+const INCLUDE_ATTENDANCE_SCHEMA = z.enum(["true", "false"]);
 const DATE_OF_BIRTH_SCHEMA = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -53,6 +54,7 @@ const PROFILE_OVERVIEW_SCHEMA = z.object({
   height_cm: z.number().int().nullable(),
   weight_kg: z.number().nullable(),
   streak_weeks: z.number().int().nonnegative(),
+  theme_preference: z.enum(["dark", "light"]),
 });
 
 const MONTHLY_ATTENDANCE_SCHEMA = z.object({
@@ -110,9 +112,12 @@ async function getAuthenticatedUserId(request: NextRequest, response: NextRespon
 
 export async function GET(request: NextRequest) {
   const month = PROFILE_MONTH_SCHEMA.safeParse(request.nextUrl.searchParams.get("month"));
+  const includeAttendance = INCLUDE_ATTENDANCE_SCHEMA.safeParse(
+    request.nextUrl.searchParams.get("includeAttendance") ?? "true",
+  );
   const response = new NextResponse();
 
-  if (!month.success) {
+  if (!month.success || !includeAttendance.success) {
     return createErrorResponse(response, 400, "invalid_request");
   }
 
@@ -128,22 +133,26 @@ export async function GET(request: NextRequest) {
       p_actor_user_id: userId,
       p_target_user_id: userId,
     }),
-    serviceRoleClient.rpc("get_profile_monthly_attendance", {
-      p_actor_user_id: userId,
-      p_target_user_id: userId,
-      p_month_start: monthStart,
-    }),
+    includeAttendance.data === "true"
+      ? serviceRoleClient.rpc("get_profile_monthly_attendance", {
+          p_actor_user_id: userId,
+          p_target_user_id: userId,
+          p_month_start: monthStart,
+        })
+      : Promise.resolve(null),
   ]);
 
-  if (overviewResult.error || attendanceResult.error) {
+  if (overviewResult.error || attendanceResult?.error) {
     console.error("[PROFILE] could not read the current profile data.");
     return createErrorResponse(response, 403, "profile_load_failed");
   }
 
   const overview = PROFILE_OVERVIEW_SCHEMA.safeParse(overviewResult.data?.at(0));
-  const attendance = z.array(MONTHLY_ATTENDANCE_SCHEMA).safeParse(attendanceResult.data);
+  const attendance = attendanceResult
+    ? z.array(MONTHLY_ATTENDANCE_SCHEMA).safeParse(attendanceResult.data)
+    : null;
 
-  if (!overview.success || !attendance.success) {
+  if (!overview.success || (attendance !== null && !attendance.success)) {
     console.error("[PROFILE] profile RPC returned an invalid response.");
     return createErrorResponse(response, 503, "profile_load_failed");
   }
@@ -158,11 +167,16 @@ export async function GET(request: NextRequest) {
       heightCm: overview.data.height_cm,
       weightKg: overview.data.weight_kg,
       streakWeeks: overview.data.streak_weeks,
+      themePreference: overview.data.theme_preference,
     },
-    attendance: attendance.data.map((entry) => ({
-      bookingDate: entry.booking_date,
-      status: entry.attendance_status,
-    })),
+    ...(attendance?.success
+      ? {
+          attendance: attendance.data.map((entry) => ({
+            bookingDate: entry.booking_date,
+            status: entry.attendance_status,
+          })),
+        }
+      : {}),
   });
 }
 

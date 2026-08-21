@@ -14,6 +14,9 @@
   --text-xxxs: 0.5rem; /* 8px */
 
   --color-accent: #f5b400;
+  --color-accent-fill: #f5b400;
+  --color-accent-foreground: #060606;
+  --color-progress: #f5b400;
   --color-bg: #000000;
   --color-surface: #000000;
   --color-divider: #111111;
@@ -25,7 +28,7 @@
   --color-foreground-muted: #d4d4d8;
   --color-overlay: rgb(0 0 0 / 70%);
 
-  --shadow-accent: 0 4px 24px rgba(245, 180, 0, 0.25);
+  --shadow-accent: 0 4px 24px rgb(245 180 0 / 25%);
 }
 
 :root {
@@ -34,6 +37,10 @@
 
 :root[data-theme="light"] {
   color-scheme: light;
+  --color-accent: #275d8c;
+  --color-accent-fill: #006eb8;
+  --color-accent-foreground: #ffffff;
+  --shadow-accent: 0 4px 24px rgb(0 75 133 / 25%);
   --color-bg: #f1f0eb;
   --color-surface: #faf9f6;
   --color-divider: #d7d3ca;
@@ -54,6 +61,13 @@
   background-color: var(--color-surface);
 }
 
+@utility gusm-app-overlay {
+  width: 100%;
+  max-width: var(--container-app);
+  left: 50%;
+  transform: translateX(-50%);
+}
+
 @utility gusm-input-primary {
   min-height: var(--spacing-control);
   @apply bg-input px-4 py-3 text-base text-foreground outline-none;
@@ -70,9 +84,9 @@
 }
 
 @utility gusm-button-primary {
-  @apply rounded-xl bg-accent px-4 py-3 text-base font-semibold text-neutral-950;
+  @apply rounded-xl bg-accent-fill px-4 py-3 text-base font-semibold text-accent-foreground;
   @apply transition-colors duration-200 ease-in-out;
-  @apply hover:cursor-pointer hover:bg-accent/90;
+  @apply hover:cursor-pointer hover:bg-accent;
   @apply focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:outline-none;
   @apply disabled:cursor-not-allowed disabled:opacity-50;
 }

@@ -50,7 +50,7 @@ export function CalendarBanner({
                 <span
                   className={clsx(
                     "text-sm font-bold",
-                    isSelected ? "text-neutral-950" : isToday ? "text-accent" : "text-muted",
+                    isSelected ? "text-accent-foreground" : isToday ? "text-accent" : "text-muted",
                   )}
                 >
                   {date.getDate()}

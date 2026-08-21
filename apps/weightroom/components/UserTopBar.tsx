@@ -18,6 +18,7 @@ import {
 import clsx from "clsx";
 import { ActiveBookingsPanel, type ActiveBooking } from "@/components/ActiveBookingsPanel";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import type { ThemePreference } from "@/lib/theme";
 
 const SPANISH_PLURAL_RULES = new Intl.PluralRules("es-CL");
 
@@ -51,6 +52,7 @@ type UserTopBarProps = {
   activeBookings?: ActiveBooking[];
   onConfirmBooking?: (bookingKey: string) => void;
   onCancelBooking?: (bookingKey: string) => void;
+  onThemePreferenceChange?: (themePreference: ThemePreference) => Promise<boolean>;
 };
 
 function isAtLeastStaff(role: AppRole): boolean {
@@ -79,6 +81,7 @@ export function UserTopBar({
   activeBookings = [],
   onConfirmBooking,
   onCancelBooking,
+  onThemePreferenceChange,
 }: UserTopBarProps) {
   const [activePopover, setActivePopover] = useState<ActivePopover>(null);
   const topBarRef = useRef<HTMLDivElement>(null);
@@ -124,7 +127,7 @@ export function UserTopBar({
     avatarMenu.push({ label: "Marcar asistencia", icon: QrCode, onClick: onGoCheckIn });
   }
   if (role && isAtLeastStaff(role) && onGoOvercapacity) {
-    avatarMenu.push({ label: "Sobrecupo", icon: Users, onClick: onGoOvercapacity });
+    avatarMenu.push({ label: "Bloque actual", icon: Users, onClick: onGoOvercapacity });
   }
   if (role && isAtLeastStaff(role) && onGoInformation) {
     avatarMenu.push({ label: "Información", icon: LayoutDashboard, onClick: onGoInformation });
@@ -226,7 +229,9 @@ export function UserTopBar({
           </div>
         )}
 
-        <ThemeToggle />
+        {onThemePreferenceChange && (
+          <ThemeToggle onThemePreferenceChange={onThemePreferenceChange} />
+        )}
 
         {hasMenu && (
           <div className="relative shrink-0">

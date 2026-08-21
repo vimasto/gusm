@@ -9,6 +9,7 @@ const CURRENT_USER_SCHEMA = z.object({
   user_name: z.string().min(1),
   role: z.enum(["student", "u_staff", "gym_staff", "admin"]),
   streak_weeks: z.number().int().nonnegative(),
+  theme_preference: z.enum(["dark", "light"]),
 });
 
 function createResponse(response: NextResponse, status: number, body: Record<string, unknown>) {
@@ -69,5 +70,6 @@ export async function GET(request: NextRequest) {
     userName: currentUser.data.user_name,
     role: currentUser.data.role,
     streakWeeks: currentUser.data.streak_weeks,
+    themePreference: currentUser.data.theme_preference,
   });
 }

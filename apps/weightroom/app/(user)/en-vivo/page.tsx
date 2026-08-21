@@ -298,7 +298,7 @@ export default function LiveOccupancyPage() {
         {/* todo : actualizar ruta cuando apps/usr este listo */}
         <Link
           href="http://192.168.1.10:3001/"
-          className="absolute right-4 bottom-6 flex items-center gap-2 rounded-full bg-accent px-4 py-2.5 text-sm font-bold text-neutral-950 shadow-md transition-all active:scale-95"
+          className="absolute right-4 bottom-6 flex items-center gap-2 rounded-full bg-accent-fill px-4 py-2.5 text-sm font-bold text-accent-foreground shadow-md transition-all active:scale-95"
         >
           Mi reserva
         </Link>

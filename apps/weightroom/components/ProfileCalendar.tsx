@@ -159,7 +159,7 @@ export function ProfileCalendar({
                   }
                   className={clsx(
                     "flex size-8 items-center justify-center rounded-full text-sm font-medium tabular-nums",
-                    attendanceStatus === "present" && "bg-accent text-neutral-950",
+                    attendanceStatus === "present" && "bg-accent text-accent-foreground",
                     attendanceStatus === "absent" &&
                       "border border-rose-500/70 text-rose-300 line-through decoration-rose-500/80 decoration-2",
                     !attendanceStatus && isToday && "ring-1 ring-accent/80 text-accent",

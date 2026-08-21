@@ -79,6 +79,7 @@ type UserCalendarBannerProps = {
   activeBookings: ActiveBooking[];
   onConfirmBooking: (bookingKey: string) => void;
   onCancelBooking: (bookingKey: string) => void;
+  weekSelector?: React.ReactNode;
 };
 
 function getSelectionPillClassName(isActive: boolean): string {
@@ -106,6 +107,7 @@ export function UserCalendarBanner({
   activeBookings,
   onConfirmBooking,
   onCancelBooking,
+  weekSelector,
 }: UserCalendarBannerProps) {
   const today = getSantiagoToday();
   const week = getWeekDates(weekOffset);
@@ -176,6 +178,8 @@ export function UserCalendarBanner({
         isTodaySelected={isTodaySelected}
       />
 
+      {weekSelector}
+
       <div className="grid grid-cols-5 gap-1 px-2 pb-4">
         {week.map((date, index) => {
           const isSelected = index === selectedDay;
@@ -209,7 +213,7 @@ export function UserCalendarBanner({
                 <span
                   className={clsx(
                     "text-sm font-bold",
-                    isSelected ? "text-neutral-950" : isToday ? "text-accent" : "text-muted",
+                    isSelected ? "text-accent-foreground" : isToday ? "text-accent" : "text-muted",
                   )}
                 >
                   {date.getDate()}

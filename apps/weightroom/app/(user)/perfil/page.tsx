@@ -8,6 +8,15 @@ import { CREATE_SUPABASE_BROWSER_CLIENT } from "@gusm/database/client";
 import { ProfileCalendar, type ProfileAttendanceEntry } from "@/components/ProfileCalendar";
 import { type AppRole, UserTopBar } from "@/components/UserTopBar";
 import { getSantiagoToday } from "@/components/UserCalendarBanner";
+import {
+  clearProfileCache,
+  getCachedMonthlyAttendance,
+  getCachedProfile,
+  getProfileCacheUserId,
+  setCachedMonthlyAttendance,
+  setCachedProfile,
+} from "@/lib/profile-cache";
+import { applyThemePreference, type ThemePreference } from "@/lib/theme";
 
 const PROFILE_RESPONSE_SCHEMA = z.object({
   profile: z.object({
@@ -22,13 +31,16 @@ const PROFILE_RESPONSE_SCHEMA = z.object({
     heightCm: z.number().int().nullable(),
     weightKg: z.number().nullable(),
     streakWeeks: z.number().int().nonnegative(),
+    themePreference: z.enum(["dark", "light"]),
   }),
-  attendance: z.array(
-    z.object({
-      bookingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-      status: z.enum(["present", "absent"]),
-    }),
-  ),
+  attendance: z
+    .array(
+      z.object({
+        bookingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        status: z.enum(["present", "absent"]),
+      }),
+    )
+    .optional(),
 });
 
 type Profile = z.infer<typeof PROFILE_RESPONSE_SCHEMA>["profile"];
@@ -155,6 +167,7 @@ export default function ProfilePage() {
   const [visibleMonth, setVisibleMonth] = useState(() => getMonthStart(today));
   const [profile, setProfile] = useState<Profile | null>(null);
   const [attendance, setAttendance] = useState<ProfileAttendanceEntry[]>([]);
+  const [cachedStreakWeeks, setCachedStreakWeeks] = useState(0);
   const [loadedMonth, setLoadedMonth] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -180,7 +193,30 @@ export default function ProfilePage() {
       setLoadError(false);
 
       try {
-        const response = await fetch(`/api/profile?month=${monthQuery}`, {
+        const cacheUserId = await getProfileCacheUserId();
+        if (controller.signal.aborted) return;
+
+        const cachedProfile = cacheUserId ? getCachedProfile(cacheUserId) : null;
+        if (cachedProfile) {
+          applyThemePreference(cachedProfile.themePreference);
+          setProfile(cachedProfile);
+        }
+
+        const cachedAttendance = cacheUserId
+          ? getCachedMonthlyAttendance(cacheUserId, monthQuery)
+          : null;
+        if (cachedAttendance) {
+          setAttendance(cachedAttendance.attendance);
+          setCachedStreakWeeks(cachedAttendance.streakWeeks);
+          setLoadedMonth(monthQuery);
+          setIsLoading(false);
+        }
+
+        const profileParameters = new URLSearchParams({
+          month: monthQuery,
+          includeAttendance: cachedAttendance ? "false" : "true",
+        });
+        const response = await fetch(`/api/profile?${profileParameters.toString()}`, {
           cache: "no-store",
           signal: controller.signal,
         });
@@ -195,9 +231,25 @@ export default function ProfilePage() {
           throw new Error("Profile response is invalid.");
         }
 
+        applyThemePreference(parsedPayload.data.profile.themePreference);
         setProfile(parsedPayload.data.profile);
-        setAttendance(parsedPayload.data.attendance);
-        setLoadedMonth(monthQuery);
+        if (cacheUserId) {
+          setCachedProfile(cacheUserId, parsedPayload.data.profile);
+        }
+
+        if (parsedPayload.data.attendance) {
+          setAttendance(parsedPayload.data.attendance);
+          setLoadedMonth(monthQuery);
+
+          if (cacheUserId) {
+            setCachedMonthlyAttendance(
+              cacheUserId,
+              monthQuery,
+              parsedPayload.data.attendance,
+              parsedPayload.data.profile.streakWeeks,
+            );
+          }
+        }
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") return;
 
@@ -251,6 +303,7 @@ export default function ProfilePage() {
         throw new Error("Profile update was rejected.");
       }
 
+      clearProfileCache();
       setIsEditorOpen(false);
       setReloadIndex((currentIndex) => currentIndex + 1);
     } catch (error) {
@@ -270,7 +323,32 @@ export default function ProfilePage() {
       return;
     }
 
+    clearProfileCache();
     router.replace("/login");
+  }
+
+  async function updateThemePreference(themePreference: ThemePreference) {
+    try {
+      const response = await fetch("/api/theme-preference", {
+        method: "POST",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ themePreference }),
+      });
+
+      if (response.status !== 204) {
+        throw new Error("Theme preference update was rejected.");
+      }
+
+      clearProfileCache();
+      setProfile((currentProfile) =>
+        currentProfile ? { ...currentProfile, themePreference } : currentProfile,
+      );
+      return true;
+    } catch (error) {
+      console.error("[PROFILE] could not update theme preference.", error);
+      return false;
+    }
   }
 
   function goToPreviousMonth() {
@@ -295,7 +373,9 @@ export default function ProfilePage() {
             userName={profile?.userName}
             role={profile?.role}
             showActiveBookings={false}
+            onGoOvercapacity={() => router.push("/bloque")}
             onSignOut={signOut}
+            onThemePreferenceChange={profile ? updateThemePreference : undefined}
           />
         </header>
 
@@ -319,7 +399,7 @@ export default function ProfilePage() {
                 month={visibleMonth}
                 onPreviousMonth={goToPreviousMonth}
                 onNextMonth={goToNextMonth}
-                streakWeeks={profile?.streakWeeks ?? 0}
+                streakWeeks={profile?.streakWeeks ?? cachedStreakWeeks}
                 today={today}
               />
 

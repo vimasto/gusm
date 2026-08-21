@@ -17,7 +17,7 @@ function getOccupancyOpacity(pct: number): number {
 
 /** Compatibilidad temporal para los componentes de ocupación aún no migrados. */
 export function accentByOccupancy(pct: number): string {
-  return `rgb(245 180 0 / ${getOccupancyOpacity(pct)})`;
+  return `rgb(0 75 133 / ${getOccupancyOpacity(pct)})`;
 }
 
 export function accentTextClassByOccupancy(pct: number): string {
@@ -31,11 +31,11 @@ export function accentTextClassByOccupancy(pct: number): string {
 
 export function accentBackgroundClassByOccupancy(pct: number): string {
   const opacity = getOccupancyOpacity(pct);
-  if (opacity === 1) return "bg-accent";
-  if (opacity >= 0.8) return "bg-accent/80";
-  if (opacity >= 0.6) return "bg-accent/60";
-  if (opacity >= 0.4) return "bg-accent/40";
-  return "bg-accent/30";
+  if (opacity === 1) return "bg-progress";
+  if (opacity >= 0.8) return "bg-progress/80";
+  if (opacity >= 0.6) return "bg-progress/60";
+  if (opacity >= 0.4) return "bg-progress/40";
+  return "bg-progress/30";
 }
 
 export function fillPct(taken: number, totalSpots: number): number {

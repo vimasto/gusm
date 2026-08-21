@@ -49,7 +49,7 @@ export function ActiveBookingsPanel({
 
   return (
     <div
-      className="fixed inset-x-0 top-18 bottom-0 z-40 flex justify-center bg-overlay px-4 pt-6"
+      className="fixed top-18 bottom-0 gusm-app-overlay z-40 flex justify-center bg-overlay px-4 pt-6"
       onClick={onClose}
     >
       <section
