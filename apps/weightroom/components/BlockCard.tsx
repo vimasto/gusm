@@ -24,6 +24,7 @@ type BlockCardProps = {
   isBookingDateAvailable: boolean;
   isTimeBlockPast: boolean;
   isCurrentBlockAdmissionWindow: boolean;
+  closureReason?: string;
   onSelect: () => void;
 };
 
@@ -49,6 +50,7 @@ export function BlockCard({
   isBookingDateAvailable,
   isTimeBlockPast,
   isCurrentBlockAdmissionWindow,
+  closureReason,
   onSelect,
 }: BlockCardProps) {
   const fillPct = calcFillPct(block.taken, totalSpots);
@@ -56,7 +58,8 @@ export function BlockCard({
   const isUserBlock = block.userStatus !== "none";
   const isDateLocked = !isBookingDateAvailable;
   const isFullLocked = isFull && !isUserBlock && !isCurrentBlockAdmissionWindow;
-  const isLocked = isDateLocked || isFullLocked;
+  const isClosed = closureReason !== undefined;
+  const isLocked = isDateLocked || (isFullLocked && !isClosed);
 
   return (
     <button
@@ -66,7 +69,8 @@ export function BlockCard({
       className={clsx(
         "gusm-control-height w-full rounded-xl border px-3.5 py-3 text-left transition-all duration-150",
         getCardSurfaceClass(isUserBlock, isSelected, fillPct),
-        isFullLocked && "pointer-events-none cursor-not-allowed opacity-35",
+        isClosed && "border-rose-500/30 bg-rose-500/5",
+        isFullLocked && !isClosed && "pointer-events-none cursor-not-allowed opacity-35",
         isDateLocked && "pointer-events-none cursor-not-allowed",
         !isLocked && "cursor-pointer active:scale-[0.99]",
       )}
@@ -106,6 +110,12 @@ export function BlockCard({
           {isFull && !isUserBlock && (
             <span className="rounded-full border border-accent/20 bg-accent/10 px-2 py-0.5 text-xs tracking-widest text-accent">
               LLENO
+            </span>
+          )}
+
+          {isClosed && (
+            <span className="rounded-full border border-rose-500/30 bg-rose-500/5 px-2 py-0.5 text-xs tracking-widest text-rose-400">
+              CERRADO
             </span>
           )}
 

@@ -32,6 +32,15 @@ const CURRENT_USER_SCHEMA = z.object({
 });
 
 type CurrentUser = z.infer<typeof CURRENT_USER_SCHEMA>;
+const BOOKING_CLOSURES_SCHEMA = z.object({
+  closures: z.array(
+    z.object({
+      date: z.string().date(),
+      timeBlockId: z.number().int().positive(),
+      reason: z.string().min(3).max(240),
+    }),
+  ),
+});
 
 /** TODO: SELECT capacity FROM gym_rules LIMIT 1 */
 const MOCK_TOTAL_SPOTS = 15;
@@ -84,9 +93,16 @@ type BookingEntry = {
   status: Exclude<UserBookingStatus, "none">;
   bookingDate: Date;
 };
+type BookingClosure = z.infer<typeof BOOKING_CLOSURES_SCHEMA>["closures"][number];
 
 function getBookingCalendarKey(weekOffset: number, dayIndex: number): BookingCalendarKey {
   return `${weekOffset}-${dayIndex}`;
+}
+
+function getBookingDateKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
+    date.getDate(),
+  ).padStart(2, "0")}`;
 }
 
 function isBookingCalendarKey(value: string): value is BookingCalendarKey {
@@ -198,6 +214,8 @@ export default function BookingPage() {
   const [bookings, setBookings] = useState<Map<BookingCalendarKey, BookingEntry>>(new Map());
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [isAdmissionRequested, setIsAdmissionRequested] = useState(false);
+  const [closures, setClosures] = useState<BookingClosure[]>([]);
+  const [closureNotice, setClosureNotice] = useState<string | null>(null);
 
   const dayKey = getBookingCalendarKey(weekOffset, dayIdx);
   const booking = bookings.get(dayKey) ?? null;
@@ -302,6 +320,36 @@ export default function BookingPage() {
     return () => controller.abort();
   }, []);
 
+  useEffect(() => {
+    const controller = new AbortController();
+    const rangeStart = getBookingDateKey(getWeekDates(MIN_WEEK_OFFSET)[0]!);
+    const rangeEnd = getBookingDateKey(getWeekDates(MAX_WEEK_OFFSET)[4]!);
+
+    async function loadClosures() {
+      try {
+        const response = await fetch(`/api/booking-closures?start=${rangeStart}&end=${rangeEnd}`, {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+
+        if (!response.ok) throw new Error("Booking closures request was rejected.");
+
+        const payload: unknown = await response.json();
+        const parsedClosures = BOOKING_CLOSURES_SCHEMA.safeParse(payload);
+        if (!parsedClosures.success) throw new Error("Booking closures response is invalid.");
+
+        setClosures(parsedClosures.data.closures);
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+
+        console.error("[RESERVA] could not load booking closures.", error);
+      }
+    }
+
+    void loadClosures();
+    return () => controller.abort();
+  }, []);
+
   // ── Handlers de calendario ────────────────────────────────────────────────
 
   function handleSelectDay(index: number) {
@@ -312,13 +360,24 @@ export default function BookingPage() {
   }
 
   function handleSelectBlock(blockId: number) {
+    const closureReason = closures.find(
+      (closure) =>
+        closure.date === getBookingDateKey(selectedDate) && closure.timeBlockId === blockId,
+    )?.reason;
+
+    if (closureReason) {
+      setClosureNotice(closureReason);
+      return;
+    }
+
     setSelectedId(blockId);
     setIsAdmissionRequested(false);
   }
 
   function handleWeekChange(offset: number) {
     const clamped = Math.max(MIN_WEEK_OFFSET, Math.min(MAX_WEEK_OFFSET, offset));
-    const nextDayIndex = clamped < 0 ? 0 : getWeekDates(clamped).findIndex(isBookingDateAvailable);
+    const firstAvailableDayIndex = getWeekDates(clamped).findIndex(isBookingDateAvailable);
+    const nextDayIndex = clamped < 0 || firstAvailableDayIndex < 0 ? 4 : firstAvailableDayIndex;
     setWeekOffset(clamped);
     setIsAdmissionRequested(false);
     setDayIdx(nextDayIndex);
@@ -423,6 +482,10 @@ export default function BookingPage() {
     router.push("/bloque");
   }
 
+  function handleGoSettings() {
+    router.push("/configuracion");
+  }
+
   async function handleSignOut() {
     const supabase = CREATE_SUPABASE_BROWSER_CLIENT();
     const { error } = await supabase.auth.signOut();
@@ -453,6 +516,7 @@ export default function BookingPage() {
           onGoProfile={handleGoProfile}
           onGoCheckIn={handleGoCheckIn}
           onGoOvercapacity={handleGoCurrentBlock}
+          onGoSettings={handleGoSettings}
           onSignOut={handleSignOut}
           activeBookings={activeBookings}
           onConfirmBooking={handleConfirmActiveBooking}
@@ -475,6 +539,13 @@ export default function BookingPage() {
                 block.startTime,
                 block.endTime,
               )}
+              closureReason={
+                closures.find(
+                  (closure) =>
+                    closure.date === getBookingDateKey(selectedDate) &&
+                    closure.timeBlockId === block.id,
+                )?.reason
+              }
               onSelect={() => handleSelectBlock(block.id)}
             />
           ))}
@@ -496,6 +567,32 @@ export default function BookingPage() {
           onConfirm={handleConfirm}
           onRequestAdmission={handleRequestAdmission}
         />
+
+        {closureNotice && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay px-5">
+            <section
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="closure-notice-title"
+              className="w-full max-w-sm rounded-2xl border border-rose-500/30 bg-surface p-5 shadow-xl"
+            >
+              <p className="text-sm font-medium tracking-widest text-rose-400">
+                BLOQUE INHABILITADO
+              </p>
+              <h2 id="closure-notice-title" className="mt-2 text-xl font-semibold text-foreground">
+                No está disponible para reserva
+              </h2>
+              <p className="mt-3 text-sm leading-6 text-muted">{closureNotice}</p>
+              <button
+                type="button"
+                onClick={() => setClosureNotice(null)}
+                className="mt-5 w-full rounded-xl bg-accent-fill py-3 text-base text-accent-foreground active:scale-[0.98]"
+              >
+                Entendido
+              </button>
+            </section>
+          </div>
+        )}
       </div>
     </div>
   );
