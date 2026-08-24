@@ -30,11 +30,13 @@ export async function proxy(request: NextRequest) {
     return createRedirectResponse(response, request, "/login");
   }
 
-  const { data: hasAcceptedCurrentTerms, error: termsError } = await supabase.rpc(
-    "has_accepted_current_terms",
-  );
+  const { data: accessState, error: accessError } = await supabase.rpc("get_current_access_state");
 
-  if (termsError || !hasAcceptedCurrentTerms) {
+  if (accessError || accessState === "unauthenticated" || accessState === "disabled") {
+    return createRedirectResponse(response, request, "/login");
+  }
+
+  if (accessState !== "active") {
     return createRedirectResponse(response, request, "/terminos");
   }
 

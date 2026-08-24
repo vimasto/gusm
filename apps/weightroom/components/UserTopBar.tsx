@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import { ActiveBookingsPanel, type ActiveBooking } from "@/components/ActiveBookingsPanel";
+import { SignOutConfirmationDialog } from "@/components/SignOutConfirmationDialog";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import type { ThemePreference } from "@/lib/theme";
 
@@ -84,6 +85,7 @@ export function UserTopBar({
   onThemePreferenceChange,
 }: UserTopBarProps) {
   const [activePopover, setActivePopover] = useState<ActivePopover>(null);
+  const [isSignOutConfirmationOpen, setIsSignOutConfirmationOpen] = useState(false);
   const topBarRef = useRef<HTMLDivElement>(null);
 
   const closePopover = useCallback(() => {
@@ -109,7 +111,18 @@ export function UserTopBar({
 
   function handleMenuItemClick(menuItem: AvatarMenuItem) {
     closePopover();
+
+    if (menuItem.variant === "destructive") {
+      setIsSignOutConfirmationOpen(true);
+      return;
+    }
+
     void menuItem.onClick();
+  }
+
+  function confirmSignOut() {
+    setIsSignOutConfirmationOpen(false);
+    if (onSignOut) void onSignOut();
   }
 
   const streakLabel =
@@ -291,6 +304,13 @@ export function UserTopBar({
             onCancel={onCancelBooking}
           />
         )}
+
+      {isSignOutConfirmationOpen && (
+        <SignOutConfirmationDialog
+          onCancel={() => setIsSignOutConfirmationOpen(false)}
+          onConfirm={confirmSignOut}
+        />
+      )}
     </div>
   );
 }
