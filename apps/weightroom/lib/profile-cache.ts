@@ -3,7 +3,7 @@ import { CREATE_SUPABASE_BROWSER_CLIENT } from "@gusm/database/client";
 import type { AppRole } from "@/components/UserTopBar";
 import type { ThemePreference } from "@/lib/theme";
 
-const ATTENDANCE_CACHE_PREFIX = "gymu.profile-attendance.v1";
+const ATTENDANCE_CACHE_PREFIX = "gymu.profile-attendance.v2";
 const ATTENDANCE_CACHE_TTL_MS = 30 * 60 * 1000;
 
 const ATTENDANCE_CACHE_SCHEMA = z.object({

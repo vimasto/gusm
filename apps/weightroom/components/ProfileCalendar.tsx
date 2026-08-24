@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Share2 } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import clsx from "clsx";
 
 const DAY_LETTERS = ["L", "M", "X", "J", "V", "S", "D"] as const;
@@ -29,7 +29,6 @@ type ProfileCalendarProps = {
   month: Date;
   onNextMonth: () => void;
   onPreviousMonth: () => void;
-  streakWeeks: number;
   today: Date;
 };
 
@@ -90,7 +89,6 @@ export function ProfileCalendar({
   month,
   onNextMonth,
   onPreviousMonth,
-  streakWeeks,
   today,
 }: ProfileCalendarProps) {
   const attendanceByDate = new Map(
@@ -102,9 +100,11 @@ export function ProfileCalendar({
   const isCurrentMonth =
     month.getFullYear() === today.getFullYear() && month.getMonth() === today.getMonth();
   const monthlyAttendance = attendance.filter((entry) => entry.status === "present").length;
+  const monthlyAbsences = attendance.filter((entry) => entry.status === "absent").length;
   const attendanceLabel =
     SPANISH_PLURAL_RULES.select(monthlyAttendance) === "one" ? "asistencia" : "asistencias";
-  const streakLabel = SPANISH_PLURAL_RULES.select(streakWeeks) === "one" ? "semana" : "semanas";
+  const absenceLabel =
+    SPANISH_PLURAL_RULES.select(monthlyAbsences) === "one" ? "inasistencia" : "inasistencias";
 
   return (
     <section className="rounded-2xl border border-accent/15 bg-input/30 px-4 py-4">
@@ -191,19 +191,13 @@ export function ProfileCalendar({
         </div>
 
         <div className="pl-3">
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-xs font-medium tracking-[0.12em] text-dim uppercase">Racha</p>
-            <button
-              type="button"
-              title="Próximamente: compartir racha"
-              aria-label="Próximamente: compartir racha"
-              className="flex size-6 items-center justify-center rounded-full text-muted transition-colors hover:bg-accent/10 hover:text-accent active:scale-95"
-            >
-              <Share2 className="size-3.5" aria-hidden="true" />
-            </button>
+          <div className="flex h-6 items-center">
+            <p className="text-xs font-medium tracking-[0.12em] text-dim uppercase">
+              Inasistencias
+            </p>
           </div>
-          <p className="mt-1 text-base font-semibold text-accent">
-            {streakWeeks} <span className="text-sm font-normal text-muted">{streakLabel}</span>
+          <p className="mt-1 text-base font-semibold text-foreground">
+            {monthlyAbsences} <span className="text-sm font-normal text-muted">{absenceLabel}</span>
           </p>
         </div>
       </div>

@@ -6,6 +6,7 @@ import { Loader2, Pencil, X } from "lucide-react";
 import * as z from "zod/v4";
 import { CREATE_SUPABASE_BROWSER_CLIENT } from "@gusm/database/client";
 import { ProfileCalendar, type ProfileAttendanceEntry } from "@/components/ProfileCalendar";
+import { StreakMilestoneProgress } from "@/components/StreakMilestoneProgress";
 import { type AppRole, UserTopBar } from "@/components/UserTopBar";
 import { getSantiagoToday } from "@/components/UserCalendarBanner";
 import {
@@ -374,6 +375,7 @@ export default function ProfilePage() {
             role={profile?.role}
             showActiveBookings={false}
             onGoOvercapacity={() => router.push("/bloque")}
+            onGoSettings={() => router.push("/configuracion")}
             onSignOut={signOut}
             onThemePreferenceChange={profile ? updateThemePreference : undefined}
           />
@@ -399,9 +401,10 @@ export default function ProfilePage() {
                 month={visibleMonth}
                 onPreviousMonth={goToPreviousMonth}
                 onNextMonth={goToNextMonth}
-                streakWeeks={profile?.streakWeeks ?? cachedStreakWeeks}
                 today={today}
               />
+
+              <StreakMilestoneProgress streakWeeks={profile?.streakWeeks ?? cachedStreakWeeks} />
 
               {loadError && (
                 <p role="alert" className="text-sm text-rose-400">
