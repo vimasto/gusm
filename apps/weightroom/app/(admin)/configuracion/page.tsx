@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Ban,
   CalendarDays,
@@ -20,12 +21,15 @@ import {
 import * as z from "zod/v4";
 import { CREATE_SUPABASE_BROWSER_CLIENT } from "@gusm/database/client";
 import { UserTopBar } from "@/components/UserTopBar";
+import { getCurrentUser } from "@/lib/current-user";
+import { clearQueryCache } from "@/lib/query-client";
+import {
+  ADMIN_CONFIGURATION_QUERY_KEY,
+  BOOKING_CLOSURES_QUERY_KEY,
+  CURRENT_USER_QUERY_KEY,
+  DISCIPLINE_RULES_QUERY_KEY,
+} from "@/lib/query-keys";
 
-const CURRENT_USER_SCHEMA = z.object({
-  userName: z.string().min(1),
-  role: z.enum(["student", "u_staff", "gym_staff", "admin"]),
-  streakWeeks: z.number().int().nonnegative(),
-});
 const TIME_BLOCK_SCHEMA = z.object({
   timeBlockId: z.number().int().positive(),
   startTime: z.string().regex(/^\d{2}:\d{2}:\d{2}$/),
@@ -80,7 +84,6 @@ const ADMIN_USER_SCHEMA = z.object({
 });
 const ADMIN_USERS_RESPONSE_SCHEMA = z.object({ users: z.array(ADMIN_USER_SCHEMA) });
 
-type CurrentUser = z.infer<typeof CURRENT_USER_SCHEMA>;
 type Configuration = z.infer<typeof CONFIGURATION_SCHEMA>;
 type DisciplineRule = z.infer<typeof DISCIPLINE_RULE_SCHEMA>;
 type AdminUser = z.infer<typeof ADMIN_USER_SCHEMA>;
@@ -220,11 +223,32 @@ function getDisciplineRuleSummary(rule: DisciplineRule) {
   return `${rule.occurrence_threshold} ${rule.occurrence_threshold === 1 ? "vez" : "veces"}: ${DISCIPLINE_VIOLATION_LABELS[rule.violation_type].toLocaleLowerCase("es-CL")}`;
 }
 
+async function getConfiguration(): Promise<Configuration> {
+  const response = await fetch("/api/configuration", { cache: "no-store" });
+  if (!response.ok) throw new Error("Configuration request was rejected.");
+
+  const payload: unknown = await response.json();
+  const configuration = CONFIGURATION_SCHEMA.safeParse(payload);
+  if (!configuration.success) throw new Error("Configuration response is invalid.");
+
+  return configuration.data;
+}
+
+async function getDisciplineRules(): Promise<DisciplineRule[]> {
+  const response = await fetch("/api/configuration/discipline", { cache: "no-store" });
+  if (!response.ok) throw new Error("Discipline rules request was rejected.");
+
+  const payload: unknown = await response.json();
+  const disciplineResponse = DISCIPLINE_RESPONSE_SCHEMA.safeParse(payload);
+  if (!disciplineResponse.success) throw new Error("Discipline rules response is invalid.");
+
+  return disciplineResponse.data.rules.filter((rule) => rule.enabled);
+}
+
 export default function ConfigurationPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const today = getSantiagoDate();
-  const [configuration, setConfiguration] = useState<Configuration | null>(null);
-  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [sessionsPerDay, setSessionsPerDay] = useState("1");
   const [overcapacityMax, setOvercapacityMax] = useState("0");
   const [closureCoverage, setClosureCoverage] = useState<ClosureCoverage>("block");
@@ -239,7 +263,6 @@ export default function ConfigurationPage() {
   const [exportStartDate, setExportStartDate] = useState(today);
   const [exportEndDate, setExportEndDate] = useState(today);
   const [exportCategory, setExportCategory] = useState<ExportCategory>("all");
-  const [disciplineRules, setDisciplineRules] = useState<DisciplineRule[]>([]);
   const [disciplineViolationType, setDisciplineViolationType] =
     useState<DisciplineViolationType>("absent");
   const [disciplineThreshold, setDisciplineThreshold] = useState("1");
@@ -253,88 +276,51 @@ export default function ConfigurationPage() {
   const [suspensionTarget, setSuspensionTarget] = useState<AdminUser | null>(null);
   const [suspensionReason, setSuspensionReason] = useState("");
   const [isUpdatingUserAccess, setIsUpdatingUserAccess] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [isSavingClosure, setIsSavingClosure] = useState(false);
   const [removingClosureKey, setRemovingClosureKey] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [reloadIndex, setReloadIndex] = useState(0);
+  const configurationQuery = useQuery({
+    queryKey: ADMIN_CONFIGURATION_QUERY_KEY,
+    queryFn: getConfiguration,
+    staleTime: 5 * 60_000,
+  });
+  const currentUserQuery = useQuery({
+    queryKey: CURRENT_USER_QUERY_KEY,
+    queryFn: getCurrentUser,
+    staleTime: 5 * 60_000,
+  });
+  const disciplineRulesQuery = useQuery({
+    queryKey: DISCIPLINE_RULES_QUERY_KEY,
+    queryFn: getDisciplineRules,
+    staleTime: 5 * 60_000,
+  });
+  const configuration = configurationQuery.data ?? null;
+  const currentUser = currentUserQuery.data ?? null;
+  const disciplineRules = disciplineRulesQuery.data ?? [];
+  const isLoading = configurationQuery.isLoading || currentUserQuery.isLoading;
+  const hasInitialLoadError =
+    configuration === null && (configurationQuery.isError || currentUserQuery.isError);
 
   useEffect(() => {
-    const controller = new AbortController();
-
-    async function loadConfiguration() {
-      setIsLoading(true);
-      setErrorMessage(null);
-
-      try {
-        const [configurationResponse, currentUserResponse] = await Promise.all([
-          fetch("/api/configuration", { cache: "no-store", signal: controller.signal }),
-          fetch("/api/current-user", { cache: "no-store", signal: controller.signal }),
-        ]);
-
-        if (!currentUserResponse.ok) throw new Error("Current user request was rejected.");
-
-        const currentUserPayload: unknown = await currentUserResponse.json();
-        const parsedCurrentUser = CURRENT_USER_SCHEMA.safeParse(currentUserPayload);
-        if (!parsedCurrentUser.success) throw new Error("Current user response is invalid.");
-
-        if (parsedCurrentUser.data.role !== "admin") {
-          router.replace("/reserva");
-          return;
-        }
-
-        if (!configurationResponse.ok) throw new Error("Configuration request was rejected.");
-
-        const configurationPayload: unknown = await configurationResponse.json();
-        const parsedConfiguration = CONFIGURATION_SCHEMA.safeParse(configurationPayload);
-        if (!parsedConfiguration.success) throw new Error("Configuration response is invalid.");
-
-        setConfiguration(parsedConfiguration.data);
-        setCurrentUser(parsedCurrentUser.data);
-        setSessionsPerDay(String(parsedConfiguration.data.settings.nSessionsPerDay));
-        setOvercapacityMax(String(parsedConfiguration.data.settings.overcapacityMaxAbove));
-        setClosureTimeBlockId(String(parsedConfiguration.data.timeBlocks[0]?.timeBlockId ?? 1));
-      } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-
-        console.error("[CONFIGURATION] could not load configuration.", error);
-        setErrorMessage("No fue posible cargar la configuración.");
-      } finally {
-        if (!controller.signal.aborted) setIsLoading(false);
-      }
-    }
-
-    void loadConfiguration();
-    return () => controller.abort();
-  }, [reloadIndex, router]);
+    if (currentUser && currentUser.role !== "admin") router.replace("/reserva");
+  }, [currentUser, router]);
 
   useEffect(() => {
-    const controller = new AbortController();
+    if (!configuration) return;
 
-    async function loadDisciplineRules() {
-      try {
-        const response = await fetch("/api/configuration/discipline", {
-          cache: "no-store",
-          signal: controller.signal,
-        });
-        if (!response.ok) throw new Error("Discipline rules request was rejected.");
+    setSessionsPerDay(String(configuration.settings.nSessionsPerDay));
+    setOvercapacityMax(String(configuration.settings.overcapacityMaxAbove));
+    setClosureTimeBlockId((currentTimeBlockId) => {
+      const isCurrentTimeBlockAvailable = configuration.timeBlocks.some(
+        (timeBlock) => String(timeBlock.timeBlockId) === currentTimeBlockId,
+      );
 
-        const payload: unknown = await response.json();
-        const parsedRules = DISCIPLINE_RESPONSE_SCHEMA.safeParse(payload);
-        if (!parsedRules.success) throw new Error("Discipline rules response is invalid.");
-
-        setDisciplineRules(parsedRules.data.rules.filter((rule) => rule.enabled));
-      } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-
-        console.error("[CONFIGURATION] could not load discipline rules.", error);
-      }
-    }
-
-    void loadDisciplineRules();
-    return () => controller.abort();
-  }, [reloadIndex]);
+      return isCurrentTimeBlockAvailable
+        ? currentTimeBlockId
+        : String(configuration.timeBlocks[0]?.timeBlockId ?? 1);
+    });
+  }, [configuration]);
 
   const closures = useMemo<Closure[]>(() => {
     if (!configuration) return [];
@@ -385,7 +371,7 @@ export default function ConfigurationPage() {
 
       if (response.status !== 204) throw new Error("Settings update was rejected.");
 
-      setReloadIndex((value) => value + 1);
+      await queryClient.invalidateQueries({ queryKey: ADMIN_CONFIGURATION_QUERY_KEY });
     } catch (error) {
       console.error("[CONFIGURATION] could not update operational settings.", error);
       setErrorMessage("No fue posible actualizar las reglas operativas.");
@@ -462,7 +448,10 @@ export default function ConfigurationPage() {
       if (response.status !== 204) throw new Error("Closure creation was rejected.");
 
       setClosureReason("");
-      setReloadIndex((value) => value + 1);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ADMIN_CONFIGURATION_QUERY_KEY }),
+        queryClient.invalidateQueries({ queryKey: BOOKING_CLOSURES_QUERY_KEY }),
+      ]);
     } catch (error) {
       console.error("[CONFIGURATION] could not create closure.", error);
       setErrorMessage(
@@ -504,7 +493,10 @@ export default function ConfigurationPage() {
 
       if (response.status !== 204) throw new Error("Closure removal was rejected.");
 
-      setReloadIndex((value) => value + 1);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ADMIN_CONFIGURATION_QUERY_KEY }),
+        queryClient.invalidateQueries({ queryKey: BOOKING_CLOSURES_QUERY_KEY }),
+      ]);
     } catch (error) {
       console.error("[CONFIGURATION] could not remove closure.", error);
       setErrorMessage("No fue posible anular la inhabilitación.");
@@ -543,7 +535,7 @@ export default function ConfigurationPage() {
       });
       if (response.status !== 204) throw new Error("Discipline rule update was rejected.");
 
-      setReloadIndex((value) => value + 1);
+      await queryClient.invalidateQueries({ queryKey: DISCIPLINE_RULES_QUERY_KEY });
     } catch (error) {
       console.error("[CONFIGURATION] could not save discipline rule.", error);
       setErrorMessage("No fue posible guardar la regla de castigo.");
@@ -564,7 +556,7 @@ export default function ConfigurationPage() {
       });
       if (response.status !== 204) throw new Error("Discipline rule removal was rejected.");
 
-      setReloadIndex((value) => value + 1);
+      await queryClient.invalidateQueries({ queryKey: DISCIPLINE_RULES_QUERY_KEY });
     } catch (error) {
       console.error("[CONFIGURATION] could not disable discipline rule.", error);
       setErrorMessage("No fue posible desactivar la regla de castigo.");
@@ -664,6 +656,7 @@ export default function ConfigurationPage() {
       return;
     }
 
+    clearQueryCache();
     router.replace("/login");
   }
 
@@ -693,16 +686,26 @@ export default function ConfigurationPage() {
             </div>
           </section>
 
-          {errorMessage && (
+          {(errorMessage || hasInitialLoadError) && (
             <p
               role="alert"
               className="rounded-xl border border-rose-500/35 bg-rose-500/10 px-3 py-2 text-sm text-rose-400"
             >
-              {errorMessage}
+              {errorMessage ?? "No fue posible cargar la configuración."}
             </p>
           )}
 
-          {isLoading || !configuration ? (
+          {hasInitialLoadError ? (
+            <button
+              type="button"
+              onClick={() => {
+                void Promise.all([configurationQuery.refetch(), currentUserQuery.refetch()]);
+              }}
+              className="gusm-button-primary self-center"
+            >
+              Reintentar
+            </button>
+          ) : isLoading || !configuration ? (
             <div className="flex flex-1 items-center justify-center py-16 text-muted">
               <Loader2 className="size-6 animate-spin" aria-hidden="true" />
             </div>

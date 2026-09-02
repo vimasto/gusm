@@ -4,19 +4,15 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Pencil, X } from "lucide-react";
 import * as z from "zod/v4";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CREATE_SUPABASE_BROWSER_CLIENT } from "@gusm/database/client";
 import { ProfileCalendar, type ProfileAttendanceEntry } from "@/components/ProfileCalendar";
 import { StreakMilestoneProgress } from "@/components/StreakMilestoneProgress";
 import { type AppRole, UserTopBar } from "@/components/UserTopBar";
 import { getSantiagoToday } from "@/components/UserCalendarBanner";
-import {
-  clearProfileCache,
-  getCachedMonthlyAttendance,
-  getCachedProfile,
-  getProfileCacheUserId,
-  setCachedMonthlyAttendance,
-  setCachedProfile,
-} from "@/lib/profile-cache";
+import { clearQueryCache } from "@/lib/query-client";
+import { CURRENT_USER_QUERY_KEY, PROFILE_QUERY_KEY, profileMonthQueryKey } from "@/lib/query-keys";
+import type { CurrentUser } from "@/lib/current-user";
 import { applyThemePreference, type ThemePreference } from "@/lib/theme";
 
 const PROFILE_RESPONSE_SCHEMA = z.object({
@@ -45,6 +41,8 @@ const PROFILE_RESPONSE_SCHEMA = z.object({
 });
 
 type Profile = z.infer<typeof PROFILE_RESPONSE_SCHEMA>["profile"];
+type ProfileResponse = z.infer<typeof PROFILE_RESPONSE_SCHEMA>;
+type ProfileMonthResponse = ProfileResponse & { monthQuery: string };
 type ProfileFormValues = {
   dateOfBirth: string;
   reportedSex: "" | "masculino" | "femenino" | "otro" | "prefiero_no_decir";
@@ -162,17 +160,38 @@ function normalizeWeightInput(value: string) {
   return String(Math.round(normalizedWeight * 100) / 100);
 }
 
+async function getProfile(monthQuery: string): Promise<ProfileMonthResponse> {
+  const profileParameters = new URLSearchParams({ month: monthQuery, includeAttendance: "true" });
+  const response = await fetch(`/api/profile?${profileParameters.toString()}`, {
+    cache: "no-store",
+  });
+
+  if (!response.ok) throw new Error("Profile request was rejected.");
+
+  const payload: unknown = await response.json();
+  const profileResponse = PROFILE_RESPONSE_SCHEMA.safeParse(payload);
+  if (!profileResponse.success) throw new Error("Profile response is invalid.");
+
+  applyThemePreference(profileResponse.data.profile.themePreference);
+  return { ...profileResponse.data, monthQuery };
+}
+
+async function saveProfileData(profileData: ProfileMutationPayload) {
+  const response = await fetch("/api/profile", {
+    method: "POST",
+    cache: "no-store",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(profileData),
+  });
+
+  if (response.status !== 204) throw new Error("Profile update was rejected.");
+}
+
 export default function ProfilePage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const today = getSantiagoToday();
   const [visibleMonth, setVisibleMonth] = useState(() => getMonthStart(today));
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [attendance, setAttendance] = useState<ProfileAttendanceEntry[]>([]);
-  const [cachedStreakWeeks, setCachedStreakWeeks] = useState(0);
-  const [loadedMonth, setLoadedMonth] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState(false);
-  const [reloadIndex, setReloadIndex] = useState(0);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [formValues, setFormValues] = useState<ProfileFormValues>({
     dateOfBirth: "",
@@ -184,86 +203,34 @@ export default function ProfilePage() {
   const [isSaving, setIsSaving] = useState(false);
 
   const monthQuery = getMonthQuery(visibleMonth);
-  const attendanceForVisibleMonth = loadedMonth === monthQuery ? attendance : [];
+  const profileQuery = useQuery({
+    queryKey: profileMonthQueryKey(monthQuery),
+    queryFn: () => getProfile(monthQuery),
+    placeholderData: keepPreviousData,
+    staleTime: 5 * 60_000,
+  });
+  const profile = profileQuery.data?.profile ?? null;
+  const attendanceForVisibleMonth: ProfileAttendanceEntry[] =
+    profileQuery.data?.monthQuery === monthQuery ? (profileQuery.data.attendance ?? []) : [];
+  const isLoading = profileQuery.isLoading;
+  const loadError = profileQuery.isError;
+  const saveProfileMutation = useMutation({
+    mutationFn: saveProfileData,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: PROFILE_QUERY_KEY });
+    },
+  });
 
   useEffect(() => {
-    const controller = new AbortController();
+    if (!profile) return;
 
-    async function loadProfile() {
-      setIsLoading(true);
-      setLoadError(false);
-
-      try {
-        const cacheUserId = await getProfileCacheUserId();
-        if (controller.signal.aborted) return;
-
-        const cachedProfile = cacheUserId ? getCachedProfile(cacheUserId) : null;
-        if (cachedProfile) {
-          applyThemePreference(cachedProfile.themePreference);
-          setProfile(cachedProfile);
-        }
-
-        const cachedAttendance = cacheUserId
-          ? getCachedMonthlyAttendance(cacheUserId, monthQuery)
-          : null;
-        if (cachedAttendance) {
-          setAttendance(cachedAttendance.attendance);
-          setCachedStreakWeeks(cachedAttendance.streakWeeks);
-          setLoadedMonth(monthQuery);
-          setIsLoading(false);
-        }
-
-        const profileParameters = new URLSearchParams({
-          month: monthQuery,
-          includeAttendance: cachedAttendance ? "false" : "true",
-        });
-        const response = await fetch(`/api/profile?${profileParameters.toString()}`, {
-          cache: "no-store",
-          signal: controller.signal,
-        });
-
-        if (!response.ok) {
-          throw new Error("Profile request was rejected.");
-        }
-
-        const payload: unknown = await response.json();
-        const parsedPayload = PROFILE_RESPONSE_SCHEMA.safeParse(payload);
-        if (!parsedPayload.success) {
-          throw new Error("Profile response is invalid.");
-        }
-
-        applyThemePreference(parsedPayload.data.profile.themePreference);
-        setProfile(parsedPayload.data.profile);
-        if (cacheUserId) {
-          setCachedProfile(cacheUserId, parsedPayload.data.profile);
-        }
-
-        if (parsedPayload.data.attendance) {
-          setAttendance(parsedPayload.data.attendance);
-          setLoadedMonth(monthQuery);
-
-          if (cacheUserId) {
-            setCachedMonthlyAttendance(
-              cacheUserId,
-              monthQuery,
-              parsedPayload.data.attendance,
-              parsedPayload.data.profile.streakWeeks,
-            );
-          }
-        }
-      } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-
-        console.error("[PROFILE] could not load profile data.", error);
-        setLoadError(true);
-      } finally {
-        if (!controller.signal.aborted) setIsLoading(false);
-      }
-    }
-
-    void loadProfile();
-    return () => controller.abort();
-  }, [monthQuery, reloadIndex]);
+    queryClient.setQueryData<CurrentUser>(CURRENT_USER_QUERY_KEY, {
+      userName: profile.userName,
+      role: profile.role,
+      streakWeeks: profile.streakWeeks,
+      themePreference: profile.themePreference,
+    });
+  }, [profile, queryClient]);
 
   function openEditor() {
     if (!profile) return;
@@ -293,20 +260,8 @@ export default function ProfilePage() {
     setIsSaving(true);
 
     try {
-      const response = await fetch("/api/profile", {
-        method: "POST",
-        cache: "no-store",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(profileData.data),
-      });
-
-      if (response.status !== 204) {
-        throw new Error("Profile update was rejected.");
-      }
-
-      clearProfileCache();
+      await saveProfileMutation.mutateAsync(profileData.data);
       setIsEditorOpen(false);
-      setReloadIndex((currentIndex) => currentIndex + 1);
     } catch (error) {
       console.error("[PROFILE] could not save profile data.", error);
       setFormError("No fue posible guardar tus datos. Intenta nuevamente.");
@@ -324,7 +279,7 @@ export default function ProfilePage() {
       return;
     }
 
-    clearProfileCache();
+    clearQueryCache();
     router.replace("/login");
   }
 
@@ -341,9 +296,18 @@ export default function ProfilePage() {
         throw new Error("Theme preference update was rejected.");
       }
 
-      clearProfileCache();
-      setProfile((currentProfile) =>
-        currentProfile ? { ...currentProfile, themePreference } : currentProfile,
+      queryClient.setQueriesData<ProfileMonthResponse>(
+        { queryKey: PROFILE_QUERY_KEY },
+        (currentProfile) =>
+          currentProfile
+            ? {
+                ...currentProfile,
+                profile: { ...currentProfile.profile, themePreference },
+              }
+            : currentProfile,
+      );
+      queryClient.setQueryData<CurrentUser>(CURRENT_USER_QUERY_KEY, (user) =>
+        user ? { ...user, themePreference } : user,
       );
       return true;
     } catch (error) {
@@ -362,6 +326,7 @@ export default function ProfilePage() {
     setVisibleMonth((month) => new Date(month.getFullYear(), month.getMonth() + 1, 1));
   }
 
+  const cachedStreakWeeks = profileQuery.data?.profile.streakWeeks ?? 0;
   const age = profile?.dateOfBirth ? getAge(profile.dateOfBirth, today) : null;
   const sexLabel = profile?.reportedSex ? REPORTED_SEX_LABELS[profile.reportedSex] : null;
   return (
@@ -387,7 +352,7 @@ export default function ProfilePage() {
               <p className="text-base text-foreground-muted">No fue posible cargar tu perfil.</p>
               <button
                 type="button"
-                onClick={() => setReloadIndex((currentIndex) => currentIndex + 1)}
+                onClick={() => void profileQuery.refetch()}
                 className="gusm-button-primary"
               >
                 Reintentar

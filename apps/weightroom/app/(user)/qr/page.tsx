@@ -7,6 +7,7 @@ import * as z from "zod/v4";
 import { CheckCircle2, Clock3, RefreshCw, TriangleAlert, XCircle } from "lucide-react";
 import { CREATE_SUPABASE_BROWSER_CLIENT } from "@gusm/database/client";
 import { clearProfileCache } from "@/lib/profile-cache";
+import { clearQueryCache } from "@/lib/query-client";
 import { UserTopBar } from "@/components/UserTopBar";
 
 const TIMESTAMP_SCHEMA = z.string().refine((value) => !Number.isNaN(Date.parse(value)));
@@ -212,7 +213,7 @@ export default function CheckInQrPage() {
       return;
     }
 
-    clearProfileCache();
+    clearQueryCache();
     router.replace("/login");
   }
 

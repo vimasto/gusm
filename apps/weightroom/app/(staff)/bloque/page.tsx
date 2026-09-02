@@ -6,7 +6,7 @@ import { CheckCircle2, ChevronLeft, MoreHorizontal, Search, Users, X } from "luc
 import * as z from "zod/v4";
 import { CREATE_SUPABASE_BROWSER_CLIENT } from "@gusm/database/client";
 import { UserTopBar, type AppRole } from "@/components/UserTopBar";
-import { clearProfileCache } from "@/lib/profile-cache";
+import { clearQueryCache } from "@/lib/query-client";
 
 const CURRENT_USER_SCHEMA = z.object({
   userName: z.string().min(1),
@@ -219,7 +219,7 @@ export default function CurrentBlockPage() {
       return;
     }
 
-    clearProfileCache();
+    clearQueryCache();
     router.replace("/login");
   }
 

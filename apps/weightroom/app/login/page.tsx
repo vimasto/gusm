@@ -19,6 +19,7 @@ import {
   LOGIN_REQUEST_SCHEMA,
   type LoginRequest,
 } from "@/lib/auth/login";
+import { clearQueryCache } from "@/lib/query-client";
 import type { ThemePreference } from "@/lib/theme";
 type LoginButtonStatus = "idle" | "loading" | "error_credentials" | "error_network" | "success";
 
@@ -95,6 +96,7 @@ export default function LoginPage() {
       });
 
       if (response.status === 204) {
+        clearQueryCache();
         setLoginSucceeded(true);
         const termsAcceptanceRequired =
           response.headers.get("X-GUSM-Terms-Acceptance-Required") === "true";

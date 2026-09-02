@@ -3,6 +3,7 @@ import localFont from "next/font/local";
 import Script from "next/script";
 import "./globals.css";
 import { clsx } from "clsx";
+import { QueryProvider } from "@/components/QueryProvider";
 
 const montserrat = localFont({
   src: "./fonts/Montserrat-VariableFont_wght.ttf",
@@ -47,7 +48,7 @@ export default function RootLayout({
           "min-h-svh w-full bg-bg text-foreground antialiased",
         )}
       >
-        {children}
+        <QueryProvider>{children}</QueryProvider>
       </body>
       <Script id="initialize-theme" strategy="beforeInteractive">
         {THEME_INITIALIZATION_SCRIPT}
