@@ -225,8 +225,8 @@ export default function CurrentBlockPage() {
 
   return (
     <main className="flex min-h-svh w-full justify-center bg-bg">
-      <div className="flex min-h-svh gusm-app-shell flex-col bg-surface">
-        <header className="sticky top-0 z-20 border-b border-divider bg-surface">
+      <div className="flex h-svh gusm-app-shell flex-col overflow-hidden bg-surface">
+        <header className="z-20 shrink-0 border-b border-divider bg-surface">
           <UserTopBar
             onBack={() => router.push("/reserva")}
             pageTitle="Bloque actual"
@@ -239,7 +239,7 @@ export default function CurrentBlockPage() {
           />
         </header>
 
-        <div className="flex flex-1 flex-col gap-4 px-4 py-5">
+        <div className="flex gusm-page-scroll flex-col gap-4 px-4 pt-5 pb-[calc(5.5rem+env(safe-area-inset-bottom))]">
           {isLoading ? (
             <p className="text-center text-sm text-dim">Cargando bloque actual…</p>
           ) : loadError && !context ? (

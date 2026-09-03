@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -19,6 +19,7 @@ import {
   LOGIN_REQUEST_SCHEMA,
   type LoginRequest,
 } from "@/lib/auth/login";
+import { PRESENTATION_LOGIN_BYPASS_ENABLED } from "@/lib/auth/presentation-login";
 import { clearQueryCache } from "@/lib/query-client";
 import type { ThemePreference } from "@/lib/theme";
 type LoginButtonStatus = "idle" | "loading" | "error_credentials" | "error_network" | "success";
@@ -49,6 +50,7 @@ export default function LoginPage() {
     clearErrors,
     formState: { errors, isSubmitting },
     handleSubmit,
+    getValues,
     register,
     setError,
   } = useForm<LoginRequest>({
@@ -79,6 +81,11 @@ export default function LoginPage() {
 
   function togglePasswordVisibility() {
     setPasswordVisible(!passwordVisible);
+  }
+
+  function handlePresentationLoginSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void handleLoginSubmit(getValues());
   }
 
   async function handleLoginSubmit(loginRequest: LoginRequest) {
@@ -191,7 +198,11 @@ export default function LoginPage() {
 
         <form
           noValidate
-          onSubmit={handleSubmit(handleLoginSubmit)}
+          onSubmit={
+            PRESENTATION_LOGIN_BYPASS_ENABLED
+              ? handlePresentationLoginSubmit
+              : handleSubmit(handleLoginSubmit)
+          }
           aria-busy={isSubmitting}
           className="flex w-full flex-1 flex-col gap-5"
         >

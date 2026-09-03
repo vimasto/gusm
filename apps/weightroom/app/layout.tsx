@@ -42,6 +42,11 @@ export default function RootLayout({
       className={`${montserrat.variable} h-full antialiased`}
       suppressHydrationWarning
     >
+      <head>
+        <Script id="initialize-theme" strategy="beforeInteractive">
+          {THEME_INITIALIZATION_SCRIPT}
+        </Script>
+      </head>
       <body
         className={clsx(
           "flex flex-col items-center justify-center scroll-smooth font-sans",
@@ -50,9 +55,6 @@ export default function RootLayout({
       >
         <QueryProvider>{children}</QueryProvider>
       </body>
-      <Script id="initialize-theme" strategy="beforeInteractive">
-        {THEME_INITIALIZATION_SCRIPT}
-      </Script>
     </html>
   );
 }

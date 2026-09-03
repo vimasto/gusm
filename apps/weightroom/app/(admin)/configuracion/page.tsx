@@ -662,18 +662,20 @@ export default function ConfigurationPage() {
 
   return (
     <main className="flex min-h-svh w-full justify-center bg-bg">
-      <div className="relative flex min-h-svh gusm-app-shell flex-col bg-surface">
-        <UserTopBar
-          onBack={() => router.back()}
-          pageTitle="Configuración"
-          showActiveBookings={false}
-          userName={currentUser?.userName}
-          role={currentUser?.role}
-          onGoProfile={() => router.push("/perfil")}
-          onSignOut={signOut}
-        />
+      <div className="relative flex h-svh gusm-app-shell flex-col overflow-hidden bg-surface">
+        <header className="z-20 shrink-0 border-b border-divider bg-surface">
+          <UserTopBar
+            onBack={() => router.back()}
+            pageTitle="Configuración"
+            showActiveBookings={false}
+            userName={currentUser?.userName}
+            role={currentUser?.role}
+            onGoProfile={() => router.push("/perfil")}
+            onSignOut={signOut}
+          />
+        </header>
 
-        <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-4 pb-8">
+        <div className="flex gusm-page-scroll flex-col gap-5 px-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))]">
           <section className="border-b border-divider pb-4">
             <div className="flex items-center gap-3 text-accent">
               <Settings2 className="size-6" aria-hidden="true" />

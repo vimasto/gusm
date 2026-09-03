@@ -4,6 +4,7 @@ import * as z from "zod/v4";
 import { CREATE_SUPABASE_SERVER_CLIENT } from "@gusm/database/client";
 import { CREATE_SUPABASE_SERVICE_ROLE_CLIENT } from "@gusm/database/service-role";
 import { LOGIN_REQUEST_SCHEMA, type LoginErrorCode, type LoginRequest } from "@/lib/auth/login";
+import { PRESENTATION_LOGIN_BYPASS_ENABLED } from "@/lib/auth/presentation-login";
 
 export const runtime = "nodejs";
 
@@ -15,6 +16,15 @@ const SANSANO_PROFILE_SCHEMA = z.object({
 const SANSANO_ERROR_RESPONSE_SCHEMA = z.object({
   error: z.string().trim().min(1).max(500),
 });
+
+const PRESENTATION_USER_NAME =
+  process.env["GYMU_PRESENTATION_USER_NAME"]?.trim() || "Ivan Gallardo";
+
+const PRESENTATION_LOGIN_PAYLOAD_SCHEMA = z
+  .object({
+    themePreference: z.enum(["dark", "light"]).optional(),
+  })
+  .passthrough();
 
 type SansanoAuthSettings = {
   apiKey: string;
@@ -299,7 +309,100 @@ async function requiresTermsAcceptance(userId: string) {
   return appUser.accepted_terms_version !== systemSettings.current_terms_version;
 }
 
+async function createPresentationLoginResponse(request: NextRequest) {
+  const payload: unknown = await request.json().catch(function ignoreInvalidPresentationPayload() {
+    return null;
+  });
+  const parsedPayload = PRESENTATION_LOGIN_PAYLOAD_SCHEMA.safeParse(payload);
+  const themePreference = parsedPayload.success ? parsedPayload.data.themePreference : undefined;
+  const serviceRoleClient = CREATE_SUPABASE_SERVICE_ROLE_CLIENT();
+  const { data: appUser, error: appUserError } = await serviceRoleClient
+    .from("app_user")
+    .select("disabled_at, user_id")
+    .eq("user_name", PRESENTATION_USER_NAME)
+    .maybeSingle();
+
+  if (appUserError || !appUser) {
+    console.error("[LOGIN] could not resolve the local presentation user.", {
+      appUserErrorCode: appUserError?.code ?? null,
+      appUserFound: Boolean(appUser),
+    });
+    return createErrorResponse(503, "auth_upstream_unavailable");
+  }
+
+  const { data: authUserData, error: authUserError } =
+    await serviceRoleClient.auth.admin.getUserById(appUser.user_id);
+
+  if (authUserError || !authUserData.user?.email) {
+    console.error("[LOGIN] could not resolve the local presentation user.", {
+      authUserErrorCode: authUserError?.code ?? null,
+      authUserFound: Boolean(authUserData.user),
+    });
+    return createErrorResponse(503, "auth_upstream_unavailable");
+  }
+
+  if (appUser.disabled_at) {
+    return createErrorResponse(403, "account_disabled");
+  }
+
+  if (themePreference) {
+    const { error: updateThemeError } = await serviceRoleClient
+      .from("app_user")
+      .update({ theme_preference: themePreference })
+      .eq("user_id", appUser.user_id);
+
+    if (updateThemeError) {
+      console.error("[LOGIN] could not update the presentation theme preference.");
+      return createErrorResponse(503, "auth_upstream_unavailable");
+    }
+  }
+
+  const { data: generatedLink, error: generatedLinkError } =
+    await serviceRoleClient.auth.admin.generateLink({
+      type: "magiclink",
+      email: authUserData.user.email,
+    });
+
+  if (generatedLinkError || !generatedLink.properties || !generatedLink.user) {
+    console.error("[LOGIN] could not generate the local presentation session link.");
+    return createErrorResponse(503, "auth_upstream_unavailable");
+  }
+
+  const termsAcceptanceRequired = await requiresTermsAcceptance(appUser.user_id);
+  const response = createSuccessResponse(termsAcceptanceRequired);
+  const sessionClient = CREATE_SUPABASE_SERVER_CLIENT({
+    getAll() {
+      return request.cookies.getAll();
+    },
+    setAll(cookiesToSet) {
+      for (const cookie of cookiesToSet) {
+        response.cookies.set(cookie.name, cookie.value, cookie.options);
+      }
+    },
+  });
+  const { data: sessionData, error: sessionError } = await sessionClient.auth.verifyOtp({
+    token_hash: generatedLink.properties.hashed_token,
+    type: "email",
+  });
+
+  if (sessionError || sessionData.user?.id !== appUser.user_id) {
+    console.error("[LOGIN] could not establish the local presentation session.");
+    return createErrorResponse(503, "auth_upstream_unavailable");
+  }
+
+  return response;
+}
+
 export async function POST(request: NextRequest) {
+  if (PRESENTATION_LOGIN_BYPASS_ENABLED) {
+    try {
+      return await createPresentationLoginResponse(request);
+    } catch (error) {
+      console.error("[LOGIN] could not establish the local presentation session.", error);
+      return createErrorResponse(503, "auth_upstream_unavailable");
+    }
+  }
+
   let payload: unknown;
 
   try {

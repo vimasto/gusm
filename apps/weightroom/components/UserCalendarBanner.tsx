@@ -62,6 +62,7 @@ export function isBookingDateAvailable(date: Date): boolean {
 }
 
 type UserCalendarBannerProps = {
+  confirmationReminder?: React.ReactNode;
   userName: string;
   role: AppRole;
   streakWeeks: number;
@@ -90,6 +91,7 @@ function getSelectionPillClassName(isActive: boolean): string {
 }
 
 export function UserCalendarBanner({
+  confirmationReminder,
   userName,
   role,
   streakWeeks,
@@ -225,22 +227,34 @@ export function UserCalendarBanner({
           );
         })}
       </div>
+
+      {confirmationReminder && (
+        <div className="border-t border-divider px-4 py-2">{confirmationReminder}</div>
+      )}
     </header>
   );
 }
 
 type WeekIndicatorProps = {
+  compact?: boolean;
   weekOffset: number;
   onWeekChange: (offset: number) => void;
 };
 
 const WEEK_LABELS = ["Sem. anterior", "Esta semana", "Próx. semana"] as const;
+const COMPACT_WEEK_LABELS = ["Anterior", "Actual", "Próxima"] as const;
 
-export function WeekIndicator({ weekOffset, onWeekChange }: WeekIndicatorProps) {
+export function WeekIndicator({ compact = false, weekOffset, onWeekChange }: WeekIndicatorProps) {
   const activeDot = weekOffset + 1;
+  const labels = compact ? COMPACT_WEEK_LABELS : WEEK_LABELS;
 
   return (
-    <div className="flex shrink-0 items-center justify-center gap-3 border-b border-divider bg-surface py-2">
+    <div
+      className={clsx(
+        "flex shrink-0 items-center justify-center border-b border-divider bg-surface py-2",
+        compact ? "gap-1 px-2" : "gap-1 px-2",
+      )}
+    >
       {[0, 1, 2].map((dot) => {
         const offset = dot - 1;
         const isActive = dot === activeDot;
@@ -249,16 +263,20 @@ export function WeekIndicator({ weekOffset, onWeekChange }: WeekIndicatorProps) 
             key={dot}
             type="button"
             onClick={() => onWeekChange(offset)}
-            className="group flex flex-col items-center gap-0.5 active:scale-95"
+            aria-label={WEEK_LABELS[dot]}
+            className={clsx(
+              "group flex min-w-0 flex-1 flex-col items-center gap-0.5 active:scale-95",
+            )}
           >
             <div className={getSelectionPillClassName(isActive)} />
             <span
               className={clsx(
-                "text-base tracking-widest transition-all duration-200",
+                "transition-all duration-200",
+                compact ? "text-sm tracking-wide" : "text-base tracking-[0.05em] whitespace-nowrap",
                 isActive ? "text-accent/60" : "text-dim",
               )}
             >
-              {WEEK_LABELS[dot]}
+              {labels[dot]}
             </span>
           </button>
         );

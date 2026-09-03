@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
+import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as z from "zod/v4";
 import { CREATE_SUPABASE_BROWSER_CLIENT } from "@gusm/database/client";
 import {
@@ -14,24 +16,46 @@ import {
   MIN_WEEK_OFFSET,
   MAX_WEEK_OFFSET,
 } from "@/components/UserCalendarBanner";
+import type { StaffWeekBookingDay } from "@/components/StaffWeekBookingList";
+import { UserTopBar } from "@/components/UserTopBar";
 import type { ActiveBooking } from "@/components/ActiveBookingsPanel";
 import { BlockCard, type UserBlock, type UserBookingStatus } from "@/components/BlockCard";
-import { BookingPanel } from "@/components/BookingPanel";
+import { ReservationSuccessOverlay } from "@/components/ReservationSuccessOverlay";
+import { STAFF_BOOKING_LAYOUT_PREVIEW_ENABLED } from "@/lib/booking/presentation-preview";
+import {
+  bookingAvailabilityTopic,
+  bookingWeekAvailabilityQueryKey,
+  getBookingWeekAvailability,
+  type BookingWeekAvailability,
+} from "@/lib/booking/availability";
+import { getCurrentUser } from "@/lib/current-user";
 import { clearProfileCache } from "@/lib/profile-cache";
+import { CURRENT_USER_QUERY_KEY } from "@/lib/query-keys";
 import { applyThemePreference } from "@/lib/theme";
+
+const StaffWeekBookingList = dynamic(
+  () => import("@/components/StaffWeekBookingList").then((module) => module.StaffWeekBookingList),
+  {
+    loading: function StaffWeekBookingListLoading() {
+      return (
+        <div className="flex flex-1 flex-col gap-2 px-4 py-3" aria-hidden="true">
+          {Array.from({ length: 5 }, (_, index) => (
+            <div
+              key={index}
+              className="gusm-control-height rounded-xl border border-divider bg-input"
+            />
+          ))}
+        </div>
+      );
+    },
+    ssr: false,
+  },
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MOCK DATA
 // ─────────────────────────────────────────────────────────────────────────────
 
-const CURRENT_USER_SCHEMA = z.object({
-  userName: z.string().min(1),
-  role: z.enum(["student", "u_staff", "gym_staff", "admin"]),
-  streakWeeks: z.number().int().nonnegative(),
-  themePreference: z.enum(["dark", "light"]),
-});
-
-type CurrentUser = z.infer<typeof CURRENT_USER_SCHEMA>;
 const BOOKING_CLOSURES_SCHEMA = z.object({
   closures: z.array(
     z.object({
@@ -42,7 +66,6 @@ const BOOKING_CLOSURES_SCHEMA = z.object({
   ),
 });
 
-/** TODO: SELECT capacity FROM gym_rules LIMIT 1 */
 const MOCK_TOTAL_SPOTS = 15;
 
 const BASE_BLOCKS = [
@@ -63,41 +86,37 @@ const SANTIAGO_TIME_FORMATTER = new Intl.DateTimeFormat("en-CA", {
   minute: "2-digit",
   hourCycle: "h23",
 });
+const SPANISH_NUMBER_FORMATTER = new Intl.NumberFormat("es-CL");
 
 // ─────────────────────────────────────────────────────────────────────────────
-/** Generador determinista para mock — eliminar cuando haya datos reales */
+
 function seededRand(seed: number): number {
-  const x = Math.sin(seed + 1.618) * 10000;
-  return x - Math.floor(x);
+  const value = Math.sin(seed + 1.618) * 10_000;
+  return value - Math.floor(value);
 }
 
-/**
- * TODO: reemplazar con useBlocks(dayIdx, weekOffset) + useBookings(blockId, day)
- * Genera ocupación mock determinista por día y semana.
- */
-function getMockBlocksBase(dayIdx: number, weekOffset: number): UserBlock[] {
-  return BASE_BLOCKS.map((b) => {
-    const seed = dayIdx * 137 + weekOffset * 97 + b.id * 31;
-    const taken = Math.min(Math.round(seededRand(seed) * 13) + 1, MOCK_TOTAL_SPOTS);
-    return { ...b, taken, userStatus: "none" as const };
-  });
+function getMockTaken(date: Date, timeBlockId: number): number {
+  const daySeed = Math.trunc(
+    Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86_400_000,
+  );
+  const seed = daySeed * 137 + timeBlockId * 31;
+
+  return Math.min(Math.round(seededRand(seed) * 13) + 1, MOCK_TOTAL_SPOTS);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
 // ─────────────────────────────────────────────────────────────────────────────
 // Booking state (per day)
 // ─────────────────────────────────────────────────────────────────────────────
 
-type BookingCalendarKey = `${number}-${number}`;
 type BookingEntry = {
+  bookingId: string;
   blockId: number;
-  status: Exclude<UserBookingStatus, "none">;
+  isOvercapacity: boolean;
+  status: "reserved" | "confirmed";
   bookingDate: Date;
 };
 type BookingClosure = z.infer<typeof BOOKING_CLOSURES_SCHEMA>["closures"][number];
-
-function getBookingCalendarKey(weekOffset: number, dayIndex: number): BookingCalendarKey {
-  return `${weekOffset}-${dayIndex}`;
-}
 
 function getBookingDateKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
@@ -105,8 +124,11 @@ function getBookingDateKey(date: Date) {
   ).padStart(2, "0")}`;
 }
 
-function isBookingCalendarKey(value: string): value is BookingCalendarKey {
-  return /^-?\d+-\d+$/.test(value);
+function getWeekStartDateKey(date: Date) {
+  const weekStart = new Date(date);
+  const dayOfWeek = weekStart.getDay();
+  weekStart.setDate(weekStart.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+  return getBookingDateKey(weekStart);
 }
 
 function getTimePart(parts: Intl.DateTimeFormatPart[], type: "hour" | "minute"): number {
@@ -186,6 +208,30 @@ function isStandardBookingAvailable(date: Date, startTime: string): boolean {
   return isBookingDateAvailable(date) && !isTimeBlockPast(date, startTime);
 }
 
+function getMinutesUntilConfirmationOpens(date: Date, startTime: string): number {
+  const [startHourText, startMinuteText] = startTime.split(":");
+  if (startHourText === undefined || startMinuteText === undefined) return 0;
+
+  const today = getSantiagoToday();
+  const dateDifference = Math.round(
+    (Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) -
+      Date.UTC(today.getFullYear(), today.getMonth(), today.getDate())) /
+      86_400_000,
+  );
+  const nowParts = SANTIAGO_TIME_FORMATTER.formatToParts(new Date());
+  const nowMinutes = getTimePart(nowParts, "hour") * 60 + getTimePart(nowParts, "minute");
+  const startMinutes = Number(startHourText) * 60 + Number(startMinuteText);
+
+  return Math.max(0, dateDifference * 1_440 + startMinutes - 240 - nowMinutes);
+}
+
+function getConfirmationReminder(block: UserBlock | null, date: Date): string {
+  if (!block) return "La confirmación abre 4 h antes y cierra 1 h antes del inicio.";
+
+  const minutes = getMinutesUntilConfirmationOpens(date, block.startTime);
+  return `La confirmación de este bloque abre en ${SPANISH_NUMBER_FORMATTER.format(minutes)} minutos y cierra 1 h antes del inicio.`;
+}
+
 function getDefaultCalendarSelection() {
   const currentWeek = getWeekDates(0);
   const currentWeekDayIndex = currentWeek.findIndex(isBookingDateAvailable);
@@ -211,72 +257,173 @@ export default function BookingPage() {
   const [dayIdx, setDayIdx] = useState(defaultCalendarSelection.dayIndex);
   const [weekOffset, setWeekOffset] = useState(defaultCalendarSelection.weekOffset);
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [bookings, setBookings] = useState<Map<BookingCalendarKey, BookingEntry>>(new Map());
-  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [reservationSuccessTitle, setReservationSuccessTitle] = useState<string | null>(null);
+  const [reservationError, setReservationError] = useState<string | null>(null);
   const [isAdmissionRequested, setIsAdmissionRequested] = useState(false);
   const [closures, setClosures] = useState<BookingClosure[]>([]);
   const [closureNotice, setClosureNotice] = useState<string | null>(null);
 
-  const dayKey = getBookingCalendarKey(weekOffset, dayIdx);
-  const booking = bookings.get(dayKey) ?? null;
   const selectedDate = getWeekDates(weekOffset)[dayIdx]!;
-  const isSelectedDateAvailable = isBookingDateAvailable(selectedDate);
+  const queryClient = useQueryClient();
+  const currentUserQuery = useQuery({
+    queryKey: CURRENT_USER_QUERY_KEY,
+    queryFn: getCurrentUser,
+    refetchOnMount: "always",
+  });
+  const currentUser = currentUserQuery.data ?? null;
+  const isStaffBookingView =
+    currentUser?.role === "u_staff" || STAFF_BOOKING_LAYOUT_PREVIEW_ENABLED;
 
+  const bookingAvailabilityQueries = useQueries({
+    queries: [MIN_WEEK_OFFSET, 0, MAX_WEEK_OFFSET].map((offset) => {
+      const weekStart = getBookingDateKey(getWeekDates(offset)[0]!);
+      return {
+        queryKey: bookingWeekAvailabilityQueryKey(weekStart),
+        queryFn: () => getBookingWeekAvailability(weekStart),
+        staleTime: Number.POSITIVE_INFINITY,
+        gcTime: Number.POSITIVE_INFINITY,
+      };
+    }),
+  });
+
+  const bookingAvailabilityByCell = useMemo(() => {
+    const cells = new Map<string, BookingWeekAvailability[number]>();
+
+    for (const query of bookingAvailabilityQueries) {
+      for (const cell of query.data ?? []) {
+        cells.set(`${cell.booking_date}:${cell.time_block_id}`, cell);
+      }
+    }
+
+    return cells;
+  }, [bookingAvailabilityQueries]);
+
+  const selectedDateKey = getBookingDateKey(selectedDate);
+  const selectedWeekAvailability = bookingAvailabilityQueries[weekOffset + 1]?.data;
+  const isSelectedWeekAvailabilityReady = selectedWeekAvailability !== undefined;
+  const totalSpots = selectedWeekAvailability?.[0]?.standard_capacity ?? MOCK_TOTAL_SPOTS;
+
+  const bookingEntries = useMemo<BookingEntry[]>(() => {
+    const entries: BookingEntry[] = [];
+
+    for (const cell of bookingAvailabilityByCell.values()) {
+      if (
+        cell.current_booking_id === null ||
+        (cell.current_booking_status !== "reserved" && cell.current_booking_status !== "confirmed")
+      ) {
+        continue;
+      }
+
+      const [yearText, monthText, dayText] = cell.booking_date.split("-");
+      if (!yearText || !monthText || !dayText) continue;
+
+      entries.push({
+        bookingId: cell.current_booking_id,
+        blockId: cell.time_block_id,
+        isOvercapacity: cell.current_booking_is_overcapacity ?? false,
+        status: cell.current_booking_status,
+        bookingDate: new Date(Number(yearText), Number(monthText) - 1, Number(dayText)),
+      });
+    }
+
+    return entries;
+  }, [bookingAvailabilityByCell]);
+
+  const booking =
+    bookingEntries.find(
+      (entry) =>
+        getBookingDateKey(entry.bookingDate) === selectedDateKey && entry.blockId === selectedId,
+    ) ?? null;
   const blocks = useMemo<UserBlock[]>(() => {
-    const base = getMockBlocksBase(dayIdx, weekOffset);
-    if (!booking) return base;
-    return base.map((b) =>
-      b.id === booking.blockId
-        ? {
-            ...b,
-            userStatus: booking.status,
-            taken: Math.min(b.taken + 1, MOCK_TOTAL_SPOTS),
-          }
-        : b,
-    );
-  }, [dayIdx, weekOffset, booking]);
+    return BASE_BLOCKS.map((block) => {
+      const currentBooking = bookingEntries.find(
+        (entry) =>
+          getBookingDateKey(entry.bookingDate) === selectedDateKey && entry.blockId === block.id,
+      );
+      const userStatus: UserBookingStatus =
+        currentBooking?.status === "confirmed"
+          ? "confirmed"
+          : currentBooking?.status === "reserved"
+            ? isConfirmationWindowActive(selectedDate, block.startTime)
+              ? "confirming"
+              : "inscribed"
+            : "none";
+
+      return {
+        ...block,
+        taken: Math.min(
+          getMockTaken(selectedDate, block.id) + (currentBooking ? 1 : 0),
+          MOCK_TOTAL_SPOTS,
+        ),
+        userStatus,
+      };
+    });
+  }, [bookingEntries, selectedDate, selectedDateKey]);
 
   const selectedBlock = blocks.find((b) => b.id === selectedId) ?? null;
-  const userBookedBlock = booking ? (blocks.find((b) => b.id === booking.blockId) ?? null) : null;
-  const selectedTimeBlock = selectedBlock
-    ? BASE_BLOCKS.find((timeBlock) => timeBlock.id === selectedBlock.id)
-    : null;
-  const isSelectedCancellationLocked =
-    selectedBlock?.userStatus === "confirmed" &&
-    selectedTimeBlock !== undefined &&
-    selectedTimeBlock !== null &&
-    isConfirmedBookingCancellationLocked(selectedDate, selectedTimeBlock.startTime);
-  const isSelectedBookingAvailable =
-    selectedTimeBlock !== undefined &&
-    selectedTimeBlock !== null &&
-    isStandardBookingAvailable(selectedDate, selectedTimeBlock.startTime);
-  const isSelectedBookingAutoConfirmed =
-    selectedTimeBlock !== undefined &&
-    selectedTimeBlock !== null &&
-    isFinalHourBeforeBlock(selectedDate, selectedTimeBlock.startTime);
-  const isSelectedBlockAdmissionWindow =
-    selectedTimeBlock !== undefined &&
-    selectedTimeBlock !== null &&
-    isCurrentBlockAdmissionWindow(
-      selectedDate,
-      selectedTimeBlock.startTime,
-      selectedTimeBlock.endTime,
-    );
-  // Se mantiene en la misma fuente mock que los bloques hasta conectar create_booking.
+  const confirmationReminder = getConfirmationReminder(selectedBlock, selectedDate);
+
+  const staffWeekBookingDays = useMemo<StaffWeekBookingDay[]>(() => {
+    return getWeekDates(weekOffset).map((date) => {
+      const dateKey = getBookingDateKey(date);
+      const availability = bookingAvailabilityByCell.get(`${dateKey}:7`);
+      const bookingEntry = bookingEntries.find(
+        (entry) => getBookingDateKey(entry.bookingDate) === dateKey && entry.blockId === 7,
+      );
+      const userStatus: UserBookingStatus =
+        bookingEntry?.status === "confirmed"
+          ? "confirmed"
+          : bookingEntry?.status === "reserved"
+            ? isConfirmationWindowActive(date, "17:15")
+              ? "confirming"
+              : "inscribed"
+            : "none";
+      const block: UserBlock = {
+        ...BASE_BLOCKS[6]!,
+        taken: Math.min(
+          getMockTaken(date, BASE_BLOCKS[6]!.id) + (bookingEntry ? 1 : 0),
+          MOCK_TOTAL_SPOTS,
+        ),
+        userStatus,
+      };
+      const closureReason = closures.find(
+        (closure) => closure.date === dateKey && closure.timeBlockId === block.id,
+      )?.reason;
+
+      return {
+        block,
+        closureReason,
+        date,
+        isBookingAvailable:
+          availability !== undefined && isStandardBookingAvailable(date, block.startTime),
+        isCancellationLocked: isConfirmedBookingCancellationLocked(date, block.startTime),
+        isConfirmationWindowActive: isConfirmationWindowActive(date, block.startTime),
+        isCurrentBlockAdmissionWindow: isCurrentBlockAdmissionWindow(
+          date,
+          block.startTime,
+          block.endTime,
+        ),
+        isTimeBlockPast: isTimeBlockPast(date, block.startTime),
+      };
+    });
+  }, [bookingAvailabilityByCell, bookingEntries, closures, weekOffset]);
+
   const activeBookings = useMemo<ActiveBooking[]>(() => {
     const result: ActiveBooking[] = [];
+    const today = getSantiagoToday();
 
-    for (const [bookingKey, entry] of bookings) {
+    for (const entry of bookingEntries) {
+      if (entry.isOvercapacity || entry.bookingDate < today) continue;
       const block = BASE_BLOCKS.find((candidate) => candidate.id === entry.blockId);
       if (!block) continue;
 
       result.push({
-        bookingKey,
+        bookingKey: entry.bookingId,
         date: entry.bookingDate,
         timeRange: block.timeRange,
-        status: entry.status === "confirmed" ? "confirmed" : "reserved",
+        status: entry.status,
         isConfirmationAvailable:
-          entry.status === "inscribed" &&
+          entry.status === "reserved" &&
           isConfirmationWindowActive(entry.bookingDate, block.startTime),
         isCancellationLocked:
           entry.status === "confirmed" &&
@@ -284,41 +431,13 @@ export default function BookingPage() {
       });
     }
 
-    return result.sort((left, right) => left.date.getTime() - right.date.getTime());
-  }, [bookings]);
+    return result.sort((left, right) => left.date.getTime() - right.date.getTime()).slice(0, 7);
+  }, [bookingEntries]);
 
   useEffect(() => {
-    const controller = new AbortController();
-
-    async function loadCurrentUser() {
-      try {
-        const response = await fetch("/api/current-user", {
-          cache: "no-store",
-          signal: controller.signal,
-        });
-
-        if (!response.ok) {
-          throw new Error("Current user request was rejected.");
-        }
-
-        const payload: unknown = await response.json();
-        const parsedCurrentUser = CURRENT_USER_SCHEMA.safeParse(payload);
-        if (!parsedCurrentUser.success) {
-          throw new Error("Current user response is invalid.");
-        }
-
-        applyThemePreference(parsedCurrentUser.data.themePreference);
-        setCurrentUser(parsedCurrentUser.data);
-      } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-
-        console.error("[RESERVA] could not load the topbar context.", error);
-      }
-    }
-
-    void loadCurrentUser();
-    return () => controller.abort();
-  }, []);
+    if (!currentUser) return;
+    applyThemePreference(currentUser.themePreference);
+  }, [currentUser]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -350,13 +469,57 @@ export default function BookingPage() {
     return () => controller.abort();
   }, []);
 
+  useEffect(() => {
+    if (weekOffset !== 0 || !isSameDay(selectedDate, getSantiagoToday())) return;
+
+    const supabase = CREATE_SUPABASE_BROWSER_CLIENT();
+    const channels: ReturnType<typeof supabase.channel>[] = [];
+    let isDisposed = false;
+
+    async function subscribeToTodayAvailability() {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session || isDisposed) return;
+
+      supabase.realtime.setAuth(data.session.access_token);
+
+      for (const block of BASE_BLOCKS) {
+        const channel = supabase
+          .channel(bookingAvailabilityTopic(selectedDateKey, block.id), {
+            config: { private: true },
+          })
+          .on("broadcast", { event: "invalidate" }, () => {
+            void queryClient.invalidateQueries({
+              queryKey: bookingWeekAvailabilityQueryKey(getWeekStartDateKey(selectedDate)),
+            });
+          })
+          .subscribe();
+
+        channels.push(channel);
+      }
+    }
+
+    void subscribeToTodayAvailability();
+
+    return () => {
+      isDisposed = true;
+      for (const channel of channels) {
+        void supabase.removeChannel(channel);
+      }
+    };
+  }, [queryClient, selectedDate, selectedDateKey, weekOffset]);
+
   // ── Handlers de calendario ────────────────────────────────────────────────
 
   function handleSelectDay(index: number) {
     setDayIdx(index);
     setIsAdmissionRequested(false);
-    const nextBooking = bookings.get(getBookingCalendarKey(weekOffset, index));
-    setSelectedId(nextBooking ? nextBooking.blockId : null);
+    const date = getWeekDates(weekOffset)[index];
+    const nextBooking = date
+      ? bookingEntries.find(
+          (entry) => getBookingDateKey(entry.bookingDate) === getBookingDateKey(date),
+        )
+      : undefined;
+    setSelectedId(nextBooking?.blockId ?? null);
   }
 
   function handleSelectBlock(blockId: number) {
@@ -370,7 +533,7 @@ export default function BookingPage() {
       return;
     }
 
-    setSelectedId(blockId);
+    setSelectedId((currentBlockId) => (currentBlockId === blockId ? null : blockId));
     setIsAdmissionRequested(false);
   }
 
@@ -381,54 +544,226 @@ export default function BookingPage() {
     setWeekOffset(clamped);
     setIsAdmissionRequested(false);
     setDayIdx(nextDayIndex);
-    const nextBooking = bookings.get(getBookingCalendarKey(clamped, nextDayIndex));
-    setSelectedId(nextBooking ? nextBooking.blockId : null);
+    const nextDate = getWeekDates(clamped)[nextDayIndex];
+    const nextBooking = nextDate
+      ? bookingEntries.find(
+          (entry) => getBookingDateKey(entry.bookingDate) === getBookingDateKey(nextDate),
+        )
+      : undefined;
+    setSelectedId(nextBooking?.blockId ?? null);
   }
 
   function handleGoToday() {
     setWeekOffset(defaultCalendarSelection.weekOffset);
     setIsAdmissionRequested(false);
     setDayIdx(defaultCalendarSelection.dayIndex);
-    const nextBooking = bookings.get(
-      getBookingCalendarKey(defaultCalendarSelection.weekOffset, defaultCalendarSelection.dayIndex),
-    );
-    setSelectedId(nextBooking ? nextBooking.blockId : null);
+    const date = getWeekDates(defaultCalendarSelection.weekOffset)[
+      defaultCalendarSelection.dayIndex
+    ];
+    const nextBooking = date
+      ? bookingEntries.find(
+          (entry) => getBookingDateKey(entry.bookingDate) === getBookingDateKey(date),
+        )
+      : undefined;
+    setSelectedId(nextBooking?.blockId ?? null);
+  }
+
+  async function refreshBookingWeek(bookingDate: Date) {
+    await queryClient.invalidateQueries({
+      queryKey: bookingWeekAvailabilityQueryKey(getWeekStartDateKey(bookingDate)),
+    });
+  }
+
+  async function createBooking(bookingDate: Date, timeBlockId: number) {
+    setReservationError(null);
+    const supabase = CREATE_SUPABASE_BROWSER_CLIENT();
+    const { data, error } = await supabase.rpc("create_booking", {
+      p_booking_date: getBookingDateKey(bookingDate),
+      p_time_block_id: timeBlockId,
+    });
+
+    if (error) {
+      setReservationError(
+        "No fue posible crear la reserva. Actualiza la disponibilidad e inténtalo otra vez.",
+      );
+      return;
+    }
+
+    if (data.status === "confirmed") setReservationSuccessTitle("Reserva confirmada");
+    else setReservationSuccessTitle("Reserva creada");
+    await refreshBookingWeek(bookingDate);
+  }
+
+  async function cancelBooking(bookingEntry: BookingEntry) {
+    setReservationError(null);
+    const supabase = CREATE_SUPABASE_BROWSER_CLIENT();
+    const { error } = await supabase.rpc("cancel_booking", {
+      p_booking_id: bookingEntry.bookingId,
+    });
+
+    if (error) {
+      setReservationError("No fue posible cancelar la reserva. Su estado pudo haber cambiado.");
+      return;
+    }
+
+    await refreshBookingWeek(bookingEntry.bookingDate);
+  }
+
+  async function confirmBooking(bookingEntry: BookingEntry) {
+    setReservationError(null);
+    const supabase = CREATE_SUPABASE_BROWSER_CLIENT();
+    const { error } = await supabase.rpc("confirm_booking", {
+      p_booking_id: bookingEntry.bookingId,
+    });
+
+    if (error) {
+      setReservationError(
+        "No fue posible confirmar la asistencia. Revisa que la ventana siga abierta.",
+      );
+      return;
+    }
+
+    setReservationSuccessTitle("Reserva confirmada");
+    await refreshBookingWeek(bookingEntry.bookingDate);
   }
 
   // ── Handlers de reserva ───────────────────────────────────────────────────
 
   function handleInscribe() {
-    if (!selectedId || !isSelectedDateAvailable || !isSelectedBookingAvailable) return;
-    setBookings((prev) => {
-      const next = new Map(prev);
-      next.set(dayKey, {
-        blockId: selectedId,
-        status: isSelectedBookingAutoConfirmed ? "confirmed" : "inscribed",
-        bookingDate: selectedDate,
-      });
-      return next;
-    });
+    if (
+      !selectedBlock ||
+      !isSelectedWeekAvailabilityReady ||
+      !isStandardBookingAvailable(selectedDate, selectedBlock.startTime)
+    ) {
+      return;
+    }
+
+    void createBooking(selectedDate, selectedBlock.id);
   }
 
   function handleCancel() {
-    setBookings((prev) => {
-      const next = new Map(prev);
-      next.delete(dayKey);
-      return next;
-    });
+    if (!booking) return;
+    void cancelBooking(booking);
   }
 
   function handleConfirm() {
-    if (!booking) return;
-    setBookings((prev) => {
-      const next = new Map(prev);
-      next.set(dayKey, { ...booking, status: "confirmed" });
-      return next;
-    });
+    if (!booking || booking.status !== "reserved") return;
+    void confirmBooking(booking);
+  }
+
+  function handleCreateStaffBooking(dayIndex: number) {
+    const staffDay = staffWeekBookingDays[dayIndex];
+    if (
+      !staffDay ||
+      staffDay.closureReason ||
+      staffDay.block.userStatus !== "none" ||
+      !staffDay.isBookingAvailable ||
+      staffDay.block.taken >= totalSpots
+    ) {
+      return;
+    }
+
+    setDayIdx(dayIndex);
+    setSelectedId(staffDay.block.id);
+    setIsAdmissionRequested(false);
+    void createBooking(staffDay.date, staffDay.block.id);
+  }
+
+  function handleConfirmStaffAttendance(dayIndex: number) {
+    const staffDay = staffWeekBookingDays[dayIndex];
+    const bookingEntry = staffDay
+      ? bookingEntries.find(
+          (entry) =>
+            entry.blockId === staffDay.block.id &&
+            getBookingDateKey(entry.bookingDate) === getBookingDateKey(staffDay.date),
+        )
+      : undefined;
+
+    if (
+      !staffDay ||
+      !bookingEntry ||
+      bookingEntry.status !== "reserved" ||
+      !staffDay.isConfirmationWindowActive
+    ) {
+      return;
+    }
+
+    void confirmBooking(bookingEntry);
+  }
+
+  function handleCancelStaffBooking(dayIndex: number) {
+    const staffDay = staffWeekBookingDays[dayIndex];
+    const bookingEntry = staffDay
+      ? bookingEntries.find(
+          (entry) =>
+            entry.blockId === staffDay.block.id &&
+            getBookingDateKey(entry.bookingDate) === getBookingDateKey(staffDay.date),
+        )
+      : undefined;
+
+    if (
+      !staffDay ||
+      !bookingEntry ||
+      staffDay.isTimeBlockPast ||
+      (bookingEntry.status === "confirmed" && staffDay.isCancellationLocked)
+    ) {
+      return;
+    }
+
+    if (dayIndex === dayIdx) setSelectedId(null);
+    void cancelBooking(bookingEntry);
+  }
+
+  async function handleRequestStaffAdmission(dayIndex: number) {
+    const staffDay = staffWeekBookingDays[dayIndex];
+    if (!staffDay || !staffDay.isCurrentBlockAdmissionWindow || isAdmissionRequested) return;
+
+    setDayIdx(dayIndex);
+    setSelectedId(staffDay.block.id);
+
+    if (STAFF_BOOKING_LAYOUT_PREVIEW_ENABLED) {
+      setIsAdmissionRequested(true);
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/block/request", { method: "POST" });
+      if (!response.ok) throw new Error("Admission request was rejected.");
+
+      setIsAdmissionRequested(true);
+    } catch (error) {
+      console.error("[RESERVA] current-block admission request failed.", error);
+    }
+  }
+
+  function handleShowStaffClosureReason(dayIndex: number) {
+    const staffDay = staffWeekBookingDays[dayIndex];
+    if (!staffDay?.closureReason) return;
+
+    setClosureNotice(staffDay.closureReason);
+  }
+
+  function handleDismissReservationSuccess() {
+    setReservationSuccessTitle(null);
   }
 
   async function handleRequestAdmission() {
-    if (!isSelectedBlockAdmissionWindow || isAdmissionRequested) return;
+    if (
+      !selectedBlock ||
+      !isCurrentBlockAdmissionWindow(
+        selectedDate,
+        selectedBlock.startTime,
+        selectedBlock.endTime,
+      ) ||
+      isAdmissionRequested
+    ) {
+      return;
+    }
+
+    if (STAFF_BOOKING_LAYOUT_PREVIEW_ENABLED) {
+      setIsAdmissionRequested(true);
+      return;
+    }
 
     try {
       const response = await fetch("/api/block/request", { method: "POST" });
@@ -441,33 +776,27 @@ export default function BookingPage() {
   }
 
   function handleConfirmActiveBooking(bookingKey: string) {
-    if (!isBookingCalendarKey(bookingKey)) return;
+    const bookingEntry = bookingEntries.find((entry) => entry.bookingId === bookingKey);
+    if (!bookingEntry || bookingEntry.status !== "reserved") return;
 
-    setBookings((previousBookings) => {
-      const bookingEntry = previousBookings.get(bookingKey);
-      if (!bookingEntry || bookingEntry.status !== "inscribed") return previousBookings;
+    const block = BASE_BLOCKS.find((candidate) => candidate.id === bookingEntry.blockId);
+    if (!block || !isConfirmationWindowActive(bookingEntry.bookingDate, block.startTime)) return;
 
-      const block = BASE_BLOCKS.find((candidate) => candidate.id === bookingEntry.blockId);
-      if (!block || !isConfirmationWindowActive(bookingEntry.bookingDate, block.startTime)) {
-        return previousBookings;
-      }
-
-      const nextBookings = new Map(previousBookings);
-      nextBookings.set(bookingKey, { ...bookingEntry, status: "confirmed" });
-      return nextBookings;
-    });
+    void confirmBooking(bookingEntry);
   }
 
   function handleCancelActiveBooking(bookingKey: string) {
-    if (!isBookingCalendarKey(bookingKey)) return;
+    const bookingEntry = bookingEntries.find((entry) => entry.bookingId === bookingKey);
+    if (!bookingEntry) return;
 
-    setBookings((previousBookings) => {
-      const nextBookings = new Map(previousBookings);
-      nextBookings.delete(bookingKey);
-      return nextBookings;
-    });
+    if (
+      getBookingDateKey(bookingEntry.bookingDate) === selectedDateKey &&
+      bookingEntry.blockId === selectedId
+    ) {
+      setSelectedId(null);
+    }
 
-    if (bookingKey === dayKey) setSelectedId(null);
+    void cancelBooking(bookingEntry);
   }
 
   function handleGoProfile() {
@@ -503,70 +832,135 @@ export default function BookingPage() {
   return (
     <div className="flex min-h-svh w-full justify-center bg-bg">
       <div className="relative flex h-svh gusm-app-shell flex-col overflow-hidden select-none">
-        {/* ── Banner con calendario + identidad del usuario ──────────── */}
-        <UserCalendarBanner
-          userName={currentUser?.userName ?? ""}
-          role={currentUser?.role ?? "student"}
-          streakWeeks={currentUser?.streakWeeks ?? 0}
-          selectedDay={dayIdx}
-          weekOffset={weekOffset}
-          onSelectDay={handleSelectDay}
-          onWeekChange={handleWeekChange}
-          onGoToday={handleGoToday}
-          onGoProfile={handleGoProfile}
-          onGoCheckIn={handleGoCheckIn}
-          onGoOvercapacity={handleGoCurrentBlock}
-          onGoSettings={handleGoSettings}
-          onSignOut={handleSignOut}
-          activeBookings={activeBookings}
-          onConfirmBooking={handleConfirmActiveBooking}
-          onCancelBooking={handleCancelActiveBooking}
-          weekSelector={<WeekIndicator weekOffset={weekOffset} onWeekChange={handleWeekChange} />}
-        />
+        {isStaffBookingView ? (
+          <header className="sticky top-0 z-20 border-b border-divider bg-surface select-none">
+            <UserTopBar
+              userName={currentUser?.userName}
+              role={currentUser?.role ?? "u_staff"}
+              streakWeeks={currentUser?.streakWeeks}
+              onGoProfile={handleGoProfile}
+              onGoCheckIn={handleGoCheckIn}
+              onSignOut={handleSignOut}
+              activeBookings={activeBookings}
+              onConfirmBooking={handleConfirmActiveBooking}
+              onCancelBooking={handleCancelActiveBooking}
+            />
+            <WeekIndicator compact weekOffset={weekOffset} onWeekChange={handleWeekChange} />
+          </header>
+        ) : (
+          <UserCalendarBanner
+            userName={currentUser?.userName ?? ""}
+            role={currentUser?.role ?? "student"}
+            streakWeeks={currentUser?.streakWeeks ?? 0}
+            selectedDay={dayIdx}
+            weekOffset={weekOffset}
+            onSelectDay={handleSelectDay}
+            onWeekChange={handleWeekChange}
+            onGoToday={handleGoToday}
+            onGoProfile={handleGoProfile}
+            onGoCheckIn={handleGoCheckIn}
+            onGoOvercapacity={handleGoCurrentBlock}
+            onGoSettings={handleGoSettings}
+            onSignOut={handleSignOut}
+            activeBookings={activeBookings}
+            onConfirmBooking={handleConfirmActiveBooking}
+            onCancelBooking={handleCancelActiveBooking}
+            weekSelector={<WeekIndicator weekOffset={weekOffset} onWeekChange={handleWeekChange} />}
+            confirmationReminder={
+              <p className="text-xs leading-4 text-dim" aria-live="polite">
+                {confirmationReminder}
+              </p>
+            }
+          />
+        )}
 
         {/* ── Lista de bloques scrolleable ──────────────────────────── */}
-        <div className="flex flex-1 flex-col gap-2 overflow-y-auto overscroll-contain px-4 py-3">
-          {blocks.map((block) => (
-            <BlockCard
-              key={block.id}
-              block={block}
-              totalSpots={MOCK_TOTAL_SPOTS}
-              isSelected={block.id === selectedId}
-              isBookingDateAvailable={isSelectedDateAvailable}
-              isTimeBlockPast={isTimeBlockPast(selectedDate, block.startTime)}
-              isCurrentBlockAdmissionWindow={isCurrentBlockAdmissionWindow(
-                selectedDate,
-                block.startTime,
-                block.endTime,
-              )}
-              closureReason={
-                closures.find(
-                  (closure) =>
-                    closure.date === getBookingDateKey(selectedDate) &&
-                    closure.timeBlockId === block.id,
-                )?.reason
-              }
-              onSelect={() => handleSelectBlock(block.id)}
-            />
-          ))}
-          <div className="h-2" />
-        </div>
+        {isStaffBookingView ? (
+          <StaffWeekBookingList
+            days={staffWeekBookingDays}
+            totalSpots={totalSpots}
+            onCancelBooking={handleCancelStaffBooking}
+            onConfirmAttendance={handleConfirmStaffAttendance}
+            onCreateBooking={handleCreateStaffBooking}
+            onRequestAdmission={handleRequestStaffAdmission}
+            onShowClosureReason={handleShowStaffClosureReason}
+          />
+        ) : (
+          <div className="flex flex-1 flex-col gap-2 overflow-y-auto overscroll-contain px-4 pt-3 pb-[calc(5.5rem+env(safe-area-inset-bottom))]">
+            {blocks.map((block) => (
+              <BlockCard
+                key={block.id}
+                block={block}
+                totalSpots={totalSpots}
+                isSelected={block.id === selectedId}
+                isBookingAvailable={
+                  isSelectedWeekAvailabilityReady &&
+                  isStandardBookingAvailable(selectedDate, block.startTime)
+                }
+                isCancellationLocked={isConfirmedBookingCancellationLocked(
+                  selectedDate,
+                  block.startTime,
+                )}
+                isConfirmationWindowActive={isConfirmationWindowActive(
+                  selectedDate,
+                  block.startTime,
+                )}
+                isTimeBlockPast={isTimeBlockPast(selectedDate, block.startTime)}
+                isCurrentBlockAdmissionWindow={isCurrentBlockAdmissionWindow(
+                  selectedDate,
+                  block.startTime,
+                  block.endTime,
+                )}
+                closureReason={
+                  closures.find(
+                    (closure) =>
+                      closure.date === getBookingDateKey(selectedDate) &&
+                      closure.timeBlockId === block.id,
+                  )?.reason
+                }
+                onSelect={() => handleSelectBlock(block.id)}
+                onDismissActions={() => setSelectedId(null)}
+                onCancelBooking={handleCancel}
+                onConfirmAttendance={handleConfirm}
+                onCreateBooking={handleInscribe}
+                onRequestAdmission={handleRequestAdmission}
+                onShowClosureReason={() => {
+                  const closureReason = closures.find(
+                    (closure) =>
+                      closure.date === getBookingDateKey(selectedDate) &&
+                      closure.timeBlockId === block.id,
+                  )?.reason;
+                  if (closureReason) setClosureNotice(closureReason);
+                }}
+              />
+            ))}
+            <div className="h-2" />
+          </div>
+        )}
 
-        {/* ── Panel de acción fijo en la parte inferior ─────────────── */}
-        <BookingPanel
-          selectedBlock={selectedBlock}
-          totalSpots={MOCK_TOTAL_SPOTS}
-          userBookedBlock={userBookedBlock}
-          selectedDate={selectedDate}
-          isBookingAvailable={isSelectedBookingAvailable}
-          isCancellationLocked={isSelectedCancellationLocked}
-          isCurrentBlockAdmissionWindow={isSelectedBlockAdmissionWindow}
-          isAdmissionRequested={isAdmissionRequested}
-          onInscribe={handleInscribe}
-          onCancel={handleCancel}
-          onConfirm={handleConfirm}
-          onRequestAdmission={handleRequestAdmission}
+        <ReservationSuccessOverlay
+          isOpen={reservationSuccessTitle !== null}
+          title={reservationSuccessTitle ?? "Reserva creada"}
+          onDismiss={handleDismissReservationSuccess}
         />
+
+        {reservationError && (
+          <div
+            role="alert"
+            className="fixed inset-x-4 top-4 z-40 mx-auto max-w-md rounded-xl border border-red-500/35 bg-surface px-4 py-3 text-sm text-foreground shadow-lg"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <p>{reservationError}</p>
+              <button
+                type="button"
+                onClick={() => setReservationError(null)}
+                className="shrink-0 text-base text-red-400 active:scale-[0.98]"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        )}
 
         {closureNotice && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay px-5">

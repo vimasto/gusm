@@ -227,8 +227,8 @@ export default function CheckInQrPage() {
 
   return (
     <main className="flex min-h-svh w-full justify-center bg-bg">
-      <div className="relative flex min-h-svh gusm-app-shell flex-col">
-        <header className="sticky top-0 z-20 border-b border-divider bg-surface">
+      <div className="relative flex h-svh gusm-app-shell flex-col overflow-hidden">
+        <header className="z-20 shrink-0 border-b border-divider bg-surface">
           <UserTopBar
             onBack={() => router.push("/reserva")}
             pageTitle="Asistencia"
@@ -238,7 +238,7 @@ export default function CheckInQrPage() {
           />
         </header>
 
-        <section className="flex flex-1 flex-col items-center justify-center px-6 py-8 text-center">
+        <section className="flex gusm-page-scroll flex-col items-center justify-center px-6 pt-8 pb-[calc(5.5rem+env(safe-area-inset-bottom))] text-center">
           {screen.type === "loading" && (
             <div className="flex flex-col items-center gap-4 text-muted">
               <RefreshCw className="size-8 animate-spin text-accent" aria-hidden="true" />

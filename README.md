@@ -28,6 +28,14 @@ GUSM_IDENTITY_HMAC_KEY=
 
 `SUPABASE_SECRET_KEY`, `SANSANO_AUTH_API_KEY` y `GUSM_IDENTITY_HMAC_KEY` son exclusivas de código server-side. `GUSM_IDENTITY_HMAC_KEY` debe ser un secreto aleatorio, estable y distinto de las demás claves.
 
+### Modo presentación local
+
+Por defecto `/login` usa SIGA. Para una presentación local controlada, agregar
+`NEXT_PUBLIC_GYMU_PRESENTATION_LOGIN_BYPASS=enabled` a `apps/weightroom/.env.local`, reconstruir
+y reiniciar la aplicación. Mientras esté habilitado, cualquier formulario de login, incluso vacío, abre la
+sesión del usuario de demostración `ivan.gallardo`. Nunca configurar esa variable en Cloudflare,
+Vercel ni otro deployment remoto.
+
 ## Verificación
 
 ```sh
