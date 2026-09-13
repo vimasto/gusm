@@ -83,7 +83,7 @@ export function AppNavigation({ children }: AppNavigationProps) {
       {hasNavigation && (
         <nav
           aria-label="Navegación principal"
-          className="fixed bottom-[max(env(safe-area-inset-bottom),0.75rem)] left-1/2 z-30 flex min-h-17 w-fit max-w-[calc(100%-1rem)] -translate-x-1/2 items-center justify-center gap-1 rounded-s-full rounded-e-full border border-divider/65 bg-transparent px-3 py-2 shadow-[0_6px_20px_rgb(0_0_0_/_0.12)] backdrop-blur-sm backdrop-saturate-125"
+          className="fixed bottom-[max(env(safe-area-inset-bottom),0.75rem)] left-1/2 z-30 flex min-h-17 w-fit max-w-[calc(100%-1rem)] -translate-x-1/2 items-center justify-center gap-1 rounded-s-full rounded-e-full border border-divider/65 bg-transparent px-3 py-2 shadow-[0_6px_20px_rgb(0_0_0_/_0.12)] backdrop-blur-[2px] backdrop-saturate-125"
         >
           <NavigationLinks items={items} pathname={pathname} />
         </nav>

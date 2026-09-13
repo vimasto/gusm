@@ -22,6 +22,12 @@ function getSegmentFill(occupied: number, total: number, segmentIndex: number): 
   return Math.max(0, Math.min((occupied - segmentStart) / segmentCapacity, 1));
 }
 
+function getSegmentFillClass(segmentIndex: number): string {
+  if (segmentIndex === 0) return "bg-capacity-segment-blue";
+  if (segmentIndex === 1) return "bg-capacity-segment-yellow";
+  return "bg-capacity-segment-red";
+}
+
 export function CapacitySlots({ isDisabled = false, occupied, total }: CapacitySlotsProps) {
   const shouldReduceMotion = useReducedMotion();
   const occupiedSlots = clampOccupiedSlots(occupied, total);
@@ -48,7 +54,7 @@ export function CapacitySlots({ isDisabled = false, occupied, total }: CapacityS
             <motion.span
               className={clsx(
                 "absolute inset-y-0 left-0 w-full origin-left rounded-full",
-                isDisabled ? "bg-capacity-disabled-fill" : "bg-progress",
+                isDisabled ? "bg-capacity-disabled-fill" : getSegmentFillClass(index),
               )}
               initial={false}
               animate={{ opacity: fill === 0 ? 0 : 1, scaleX: fill }}

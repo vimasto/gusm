@@ -25,6 +25,9 @@
   --color-muted: #a1a1aa;
   --color-dim: #3f3f46;
   --color-ghost: #2a2a2a;
+  --color-capacity-segment-blue: #275d8c;
+  --color-capacity-segment-yellow: #f5b400;
+  --color-capacity-segment-red: #d60019;
   --color-capacity-disabled-track: #27272a;
   --color-capacity-disabled-fill: #52525b;
   --color-foreground: #f5f5f5;

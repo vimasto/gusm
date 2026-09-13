@@ -77,7 +77,7 @@ export function BookingCard({
 
   return (
     <motion.article
-      layout="size"
+      layout
       className={clsx(
         "w-full shrink-0 rounded-xl border px-3.5 py-3",
         actions ? "h-40" : "h-24",
@@ -87,7 +87,9 @@ export function BookingCard({
       transition={
         shouldReduceMotion
           ? { duration: 0 }
-          : { type: "spring", stiffness: 330, damping: 32, mass: 0.62 }
+          : {
+              layout: { duration: 0.34, ease: [0.16, 1, 0.3, 1] },
+            }
       }
     >
       {onSelect ? (
@@ -108,14 +110,16 @@ export function BookingCard({
           <motion.div
             className="mt-3 flex h-11 items-center justify-end"
             initial={
-              shouldReduceMotion ? false : { opacity: 0, y: -8, clipPath: "inset(0 0 100% 0)" }
+              shouldReduceMotion ? false : { opacity: 0, y: 5, clipPath: "inset(0 0 100% 0)" }
             }
             animate={{ opacity: 1, y: 0, clipPath: "inset(0 0 0% 0)" }}
             exit={
-              shouldReduceMotion ? undefined : { opacity: 0, y: -5, clipPath: "inset(0 0 100% 0)" }
+              shouldReduceMotion ? undefined : { opacity: 0, y: 2, clipPath: "inset(0 0 100% 0)" }
             }
             transition={
-              shouldReduceMotion ? { duration: 0 } : { duration: 0.24, ease: [0.16, 1, 0.3, 1] }
+              shouldReduceMotion
+                ? { duration: 0 }
+                : { duration: 0.18, delay: 0.12, ease: [0.16, 1, 0.3, 1] }
             }
           >
             {actions}

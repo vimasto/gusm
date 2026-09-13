@@ -225,8 +225,18 @@ function getMinutesUntilConfirmationOpens(date: Date, startTime: string): number
   return Math.max(0, dateDifference * 1_440 + startMinutes - 240 - nowMinutes);
 }
 
-function getConfirmationReminder(block: UserBlock | null, date: Date): string {
-  if (!block) return "La confirmación abre 4 h antes y cierra 1 h antes del inicio.";
+function getConfirmationReminder(block: UserBlock | null, date: Date): string | null {
+  if (!block || !isSameDay(date, getSantiagoToday())) {
+    return "La confirmación abre 4 h antes y cierra 1 h antes del inicio.";
+  }
+
+  if (isTimeBlockPast(date, block.startTime)) return null;
+  if (isConfirmationWindowActive(date, block.startTime)) {
+    return "La confirmación de este bloque está abierta y cierra 1 h antes del inicio.";
+  }
+  if (isFinalHourBeforeBlock(date, block.startTime)) {
+    return "La confirmación ya cerró para este bloque.";
+  }
 
   const minutes = getMinutesUntilConfirmationOpens(date, block.startTime);
   return `La confirmación de este bloque abre en ${SPANISH_NUMBER_FORMATTER.format(minutes)} minutos y cierra 1 h antes del inicio.`;
@@ -271,6 +281,7 @@ export default function BookingPage() {
     refetchOnMount: "always",
   });
   const currentUser = currentUserQuery.data ?? null;
+  const isStudentUser = currentUser?.role === "student";
   const isStaffBookingView =
     currentUser?.role === "u_staff" || STAFF_BOOKING_LAYOUT_PREVIEW_ENABLED;
 
@@ -336,12 +347,17 @@ export default function BookingPage() {
     ) ?? null;
   const blocks = useMemo<UserBlock[]>(() => {
     return BASE_BLOCKS.map((block) => {
-      const currentBooking = bookingEntries.find(
-        (entry) =>
-          getBookingDateKey(entry.bookingDate) === selectedDateKey && entry.blockId === block.id,
-      );
-      const userStatus: UserBookingStatus =
-        currentBooking?.status === "confirmed"
+      const isStudentOnlyBlock = isStudentUser && block.id === 7;
+      const currentBooking = isStudentOnlyBlock
+        ? undefined
+        : bookingEntries.find(
+            (entry) =>
+              getBookingDateKey(entry.bookingDate) === selectedDateKey &&
+              entry.blockId === block.id,
+          );
+      const userStatus: UserBookingStatus = isStudentOnlyBlock
+        ? "none"
+        : currentBooking?.status === "confirmed"
           ? "confirmed"
           : currentBooking?.status === "reserved"
             ? isConfirmationWindowActive(selectedDate, block.startTime)
@@ -351,14 +367,16 @@ export default function BookingPage() {
 
       return {
         ...block,
-        taken: Math.min(
-          getMockTaken(selectedDate, block.id) + (currentBooking ? 1 : 0),
-          MOCK_TOTAL_SPOTS,
-        ),
+        taken: isStudentOnlyBlock
+          ? 0
+          : Math.min(
+              getMockTaken(selectedDate, block.id) + (currentBooking ? 1 : 0),
+              MOCK_TOTAL_SPOTS,
+            ),
         userStatus,
       };
     });
-  }, [bookingEntries, selectedDate, selectedDateKey]);
+  }, [bookingEntries, isStudentUser, selectedDate, selectedDateKey]);
 
   const selectedBlock = blocks.find((b) => b.id === selectedId) ?? null;
   const confirmationReminder = getConfirmationReminder(selectedBlock, selectedDate);
@@ -828,6 +846,48 @@ export default function BookingPage() {
     router.replace("/login");
   }
 
+  const blockCards: React.ReactNode[] = [];
+  for (const block of blocks) {
+    const isStudentOnlyBlock = isStudentUser && block.id === 7;
+    const closureReason = isStudentOnlyBlock
+      ? undefined
+      : closures.find(
+          (closure) =>
+            closure.date === getBookingDateKey(selectedDate) && closure.timeBlockId === block.id,
+        )?.reason;
+
+    blockCards.push(
+      <BlockCard
+        key={block.id}
+        block={block}
+        totalSpots={totalSpots}
+        isSelected={block.id === selectedId}
+        isBookingAvailable={
+          !isStudentOnlyBlock &&
+          isSelectedWeekAvailabilityReady &&
+          isStandardBookingAvailable(selectedDate, block.startTime)
+        }
+        isCancellationLocked={isConfirmedBookingCancellationLocked(selectedDate, block.startTime)}
+        isConfirmationWindowActive={isConfirmationWindowActive(selectedDate, block.startTime)}
+        isTimeBlockPast={isStudentOnlyBlock || isTimeBlockPast(selectedDate, block.startTime)}
+        isCurrentBlockAdmissionWindow={
+          !isStudentOnlyBlock &&
+          isCurrentBlockAdmissionWindow(selectedDate, block.startTime, block.endTime)
+        }
+        closureReason={closureReason}
+        onSelect={() => handleSelectBlock(block.id)}
+        onDismissActions={() => setSelectedId(null)}
+        onCancelBooking={handleCancel}
+        onConfirmAttendance={handleConfirm}
+        onCreateBooking={handleInscribe}
+        onRequestAdmission={handleRequestAdmission}
+        onShowClosureReason={() => {
+          if (closureReason) setClosureNotice(closureReason);
+        }}
+      />,
+    );
+  }
+
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <div className="flex min-h-svh w-full justify-center bg-bg">
@@ -867,9 +927,11 @@ export default function BookingPage() {
             onCancelBooking={handleCancelActiveBooking}
             weekSelector={<WeekIndicator weekOffset={weekOffset} onWeekChange={handleWeekChange} />}
             confirmationReminder={
-              <p className="text-xs leading-4 text-dim" aria-live="polite">
-                {confirmationReminder}
-              </p>
+              confirmationReminder ? (
+                <p className="text-xs leading-4 text-dim" aria-live="polite">
+                  {confirmationReminder}
+                </p>
+              ) : undefined
             }
           />
         )}
@@ -887,53 +949,7 @@ export default function BookingPage() {
           />
         ) : (
           <div className="flex flex-1 flex-col gap-2 overflow-y-auto overscroll-contain px-4 pt-3 pb-[calc(5.5rem+env(safe-area-inset-bottom))]">
-            {blocks.map((block) => (
-              <BlockCard
-                key={block.id}
-                block={block}
-                totalSpots={totalSpots}
-                isSelected={block.id === selectedId}
-                isBookingAvailable={
-                  isSelectedWeekAvailabilityReady &&
-                  isStandardBookingAvailable(selectedDate, block.startTime)
-                }
-                isCancellationLocked={isConfirmedBookingCancellationLocked(
-                  selectedDate,
-                  block.startTime,
-                )}
-                isConfirmationWindowActive={isConfirmationWindowActive(
-                  selectedDate,
-                  block.startTime,
-                )}
-                isTimeBlockPast={isTimeBlockPast(selectedDate, block.startTime)}
-                isCurrentBlockAdmissionWindow={isCurrentBlockAdmissionWindow(
-                  selectedDate,
-                  block.startTime,
-                  block.endTime,
-                )}
-                closureReason={
-                  closures.find(
-                    (closure) =>
-                      closure.date === getBookingDateKey(selectedDate) &&
-                      closure.timeBlockId === block.id,
-                  )?.reason
-                }
-                onSelect={() => handleSelectBlock(block.id)}
-                onDismissActions={() => setSelectedId(null)}
-                onCancelBooking={handleCancel}
-                onConfirmAttendance={handleConfirm}
-                onCreateBooking={handleInscribe}
-                onRequestAdmission={handleRequestAdmission}
-                onShowClosureReason={() => {
-                  const closureReason = closures.find(
-                    (closure) =>
-                      closure.date === getBookingDateKey(selectedDate) &&
-                      closure.timeBlockId === block.id,
-                  )?.reason;
-                  if (closureReason) setClosureNotice(closureReason);
-                }}
-              />
-            ))}
+            {blockCards}
             <div className="h-2" />
           </div>
         )}

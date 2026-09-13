@@ -2,7 +2,6 @@
 
 import { CheckCheck, Lock, Plus, X } from "lucide-react";
 import clsx from "clsx";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 
 export type BookingActionState =
   | "available"
@@ -47,11 +46,6 @@ export function BookingActionControls({
   onRequestAdmission,
   onShowClosureReason,
 }: BookingActionControlsProps) {
-  const shouldReduceMotion = useReducedMotion();
-  const transition = shouldReduceMotion
-    ? { duration: 0 }
-    : { type: "spring" as const, stiffness: 420, damping: 28, mass: 0.42 };
-
   function handleAction(action: () => void) {
     action();
     onActionComplete?.();
@@ -104,21 +98,18 @@ export function BookingActionControls({
 
   if (actionState === "available") {
     return (
-      <div className={ACTION_CONTAINER_CLASS}>
-        <motion.button
+      <div className={RESERVATION_ACTION_CONTAINER_CLASS}>
+        <button
           type="button"
           onClick={() => handleAction(onCreateBooking)}
           className={clsx(
-            ACTION_BUTTON_CLASS,
-            "bg-accent-fill text-accent-foreground hover:opacity-90 focus-visible:ring-accent",
+            RESERVATION_CONFIRM_BUTTON_CLASS,
+            "border-accent-fill bg-accent-fill text-accent-foreground hover:opacity-90 focus-visible:ring-accent",
           )}
-          initial={shouldReduceMotion ? false : { opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={transition}
         >
           <Plus className="size-4" aria-hidden="true" />
           Reservar cupo
-        </motion.button>
+        </button>
       </div>
     );
   }
@@ -128,46 +119,37 @@ export function BookingActionControls({
   const isCancellationDisabled = isTimeBlockPast || isCancellationLocked;
 
   return (
-    <AnimatePresence initial={false} mode="wait">
-      <motion.div
-        key={actionState}
-        className={RESERVATION_ACTION_CONTAINER_CLASS}
-        initial={shouldReduceMotion ? false : { opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={shouldReduceMotion ? undefined : { opacity: 0, scale: 0.9 }}
-        transition={transition}
+    <div className={RESERVATION_ACTION_CONTAINER_CLASS}>
+      <button
+        type="button"
+        onClick={isConfirmationDisabled ? undefined : () => handleAction(onConfirmAttendance)}
+        disabled={isConfirmationDisabled}
+        aria-label={isReserved ? "Confirmar asistencia" : "Reserva confirmada"}
+        title={isReserved ? "Confirmar asistencia" : "Reserva confirmada"}
+        className={clsx(
+          RESERVATION_CONFIRM_BUTTON_CLASS,
+          isConfirmationDisabled
+            ? "border-divider bg-surface text-dim opacity-45"
+            : "border-accent/40 bg-accent/10 text-accent hover:bg-accent/15",
+        )}
       >
-        <button
-          type="button"
-          onClick={isConfirmationDisabled ? undefined : () => handleAction(onConfirmAttendance)}
-          disabled={isConfirmationDisabled}
-          aria-label={isReserved ? "Confirmar asistencia" : "Reserva confirmada"}
-          title={isReserved ? "Confirmar asistencia" : "Reserva confirmada"}
-          className={clsx(
-            RESERVATION_CONFIRM_BUTTON_CLASS,
-            isConfirmationDisabled
-              ? "border-divider bg-surface text-dim opacity-45"
-              : "border-accent/40 bg-accent/10 text-accent hover:bg-accent/15",
-          )}
-        >
-          <CheckCheck className="size-4" aria-hidden="true" />
-          {isReserved ? "Confirmar" : "Confirmada"}
-        </button>
-        <button
-          type="button"
-          onClick={isCancellationDisabled ? undefined : () => handleAction(onCancelBooking)}
-          disabled={isCancellationDisabled}
-          aria-label={isCancellationDisabled ? "Cancelación no disponible" : "Cancelar reserva"}
-          title={isCancellationDisabled ? "Cancelación no disponible" : "Cancelar reserva"}
-          className={clsx(
-            RESERVATION_CANCEL_BUTTON_CLASS,
-            isCancellationDisabled && "cursor-not-allowed",
-          )}
-        >
-          <X className="size-4" aria-hidden="true" />
-          Anular
-        </button>
-      </motion.div>
-    </AnimatePresence>
+        <CheckCheck className="size-4" aria-hidden="true" />
+        {isReserved ? "Confirmar" : <span className="sr-only">Reserva confirmada</span>}
+      </button>
+      <button
+        type="button"
+        onClick={isCancellationDisabled ? undefined : () => handleAction(onCancelBooking)}
+        disabled={isCancellationDisabled}
+        aria-label={isCancellationDisabled ? "Cancelación no disponible" : "Cancelar reserva"}
+        title={isCancellationDisabled ? "Cancelación no disponible" : "Cancelar reserva"}
+        className={clsx(
+          RESERVATION_CANCEL_BUTTON_CLASS,
+          isCancellationDisabled && "cursor-not-allowed",
+        )}
+      >
+        <X className="size-4" aria-hidden="true" />
+        Anular
+      </button>
+    </div>
   );
 }
