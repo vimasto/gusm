@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ArrowLeft,
   CalendarCheck,
   Dumbbell,
   Flame,
@@ -38,9 +37,7 @@ type AvatarMenuItem = {
 };
 
 type UserTopBarProps = {
-  onGoToday?: () => void;
-  isTodaySelected?: boolean;
-  onBack?: () => void;
+  accountLabel?: string;
   pageTitle?: string;
   showActiveBookings?: boolean;
   userName?: string;
@@ -56,6 +53,7 @@ type UserTopBarProps = {
   onConfirmBooking?: (bookingKey: string) => void;
   onCancelBooking?: (bookingKey: string) => void;
   onThemePreferenceChange?: (themePreference: ThemePreference) => Promise<boolean>;
+  showUserName?: boolean;
 };
 
 function isAtLeastStaff(role: AppRole): boolean {
@@ -76,9 +74,7 @@ function getStoredStreakWeeks(storageKey: string): number {
 }
 
 export function UserTopBar({
-  onGoToday,
-  isTodaySelected,
-  onBack,
+  accountLabel,
   pageTitle,
   showActiveBookings = true,
   userName,
@@ -94,6 +90,7 @@ export function UserTopBar({
   onConfirmBooking,
   onCancelBooking,
   onThemePreferenceChange,
+  showUserName = true,
 }: UserTopBarProps) {
   const [activePopover, setActivePopover] = useState<ActivePopover>(null);
   const [isSignOutConfirmationOpen, setIsSignOutConfirmationOpen] = useState(false);
@@ -110,7 +107,14 @@ export function UserTopBar({
     if (activePopover === null) return;
 
     function closeOnOutsideClick(event: MouseEvent) {
-      if (event.target instanceof Node && topBarRef.current?.contains(event.target)) return;
+      if (
+        event.target instanceof Element &&
+        (topBarRef.current?.contains(event.target) ||
+          event.target.closest("[data-active-bookings-panel]"))
+      ) {
+        return;
+      }
+
       closePopover();
     }
 
@@ -196,7 +200,7 @@ export function UserTopBar({
   const hasStreak = streakWeeks !== undefined && streakLabel !== null;
 
   return (
-    <div ref={topBarRef} className="flex min-h-18 items-center justify-between gap-3 px-4 py-3">
+    <div ref={topBarRef} className="flex min-h-12 items-center justify-between gap-3 px-4 py-1">
       <div className="flex min-w-0 items-center gap-2 text-accent">
         {hasMenu && (
           <div className="relative shrink-0">
@@ -244,39 +248,19 @@ export function UserTopBar({
           </div>
         )}
 
-        {onBack && (
-          <button
-            type="button"
-            onClick={onBack}
-            aria-label="Volver"
-            className="flex size-8 shrink-0 items-center justify-center rounded-full border border-accent/30 bg-accent/10 text-accent transition-all active:scale-95"
-          >
-            <ArrowLeft className="size-4" aria-hidden="true" />
-          </button>
-        )}
         <Dumbbell className="size-5 shrink-0" aria-hidden="true" />
         <span className="truncate text-sm font-semibold tracking-[0.14em]">GYMU</span>
         {pageTitle && <span className="truncate text-sm font-medium text-muted">{pageTitle}</span>}
-        {onGoToday && (
-          <button
-            type="button"
-            onClick={onGoToday}
-            className={clsx(
-              "flex min-h-10 shrink-0 items-center rounded-lg px-2 text-base transition-colors active:scale-95",
-              isTodaySelected ? "text-accent hover:bg-accent/10" : "text-muted hover:bg-input",
-            )}
-          >
-            Hoy
-          </button>
-        )}
       </div>
 
       <div className="flex min-w-0 shrink items-center gap-2">
-        {userName && (
+        {showUserName && userName && (
           <span className="hidden max-w-48 min-w-0 truncate text-sm text-muted sm:block">
             {userName}
           </span>
         )}
+
+        {accountLabel && <span className="text-sm text-muted">{accountLabel}</span>}
 
         {showActiveBookings && (
           <button

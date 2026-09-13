@@ -2,6 +2,7 @@
 
 import { CheckCheck, Lock, Plus, X } from "lucide-react";
 import clsx from "clsx";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 
 export type BookingActionState =
   | "available"
@@ -23,12 +24,16 @@ const RESERVATION_CANCEL_BUTTON_CLASS =
 
 type BookingActionControlsProps = {
   actionState: BookingActionState;
+  isBookingReplacementPending?: boolean;
+  isBookingReplacementRequested?: boolean;
   isCancellationLocked: boolean;
   isConfirmationWindowActive: boolean;
   isTimeBlockPast: boolean;
   onActionComplete?: () => void;
   onCancelBooking: () => void;
+  onCancelBookingReplacement?: () => void;
   onConfirmAttendance: () => void;
+  onConfirmBookingReplacement?: () => void;
   onCreateBooking: () => void;
   onRequestAdmission: () => void;
   onShowClosureReason: () => void;
@@ -36,16 +41,22 @@ type BookingActionControlsProps = {
 
 export function BookingActionControls({
   actionState,
+  isBookingReplacementPending = false,
+  isBookingReplacementRequested = false,
   isCancellationLocked,
   isConfirmationWindowActive,
   isTimeBlockPast,
   onActionComplete,
   onCancelBooking,
+  onCancelBookingReplacement,
   onConfirmAttendance,
+  onConfirmBookingReplacement,
   onCreateBooking,
   onRequestAdmission,
   onShowClosureReason,
 }: BookingActionControlsProps) {
+  const shouldReduceMotion = useReducedMotion();
+
   function handleAction(action: () => void) {
     action();
     onActionComplete?.();
@@ -99,17 +110,59 @@ export function BookingActionControls({
   if (actionState === "available") {
     return (
       <div className={RESERVATION_ACTION_CONTAINER_CLASS}>
-        <button
-          type="button"
-          onClick={() => handleAction(onCreateBooking)}
-          className={clsx(
-            RESERVATION_CONFIRM_BUTTON_CLASS,
-            "border-accent-fill bg-accent-fill text-accent-foreground hover:opacity-90 focus-visible:ring-accent",
+        <AnimatePresence initial={false} mode="wait">
+          {isBookingReplacementRequested ? (
+            <motion.div
+              key="replace-booking"
+              initial={shouldReduceMotion ? false : { opacity: 0, x: 8 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={shouldReduceMotion ? undefined : { opacity: 0, x: -8 }}
+              transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+              className="flex w-full items-center gap-2"
+            >
+              <p className="min-w-0 flex-1 text-sm leading-4 text-muted">
+                Reservar aquí y anular tu otra reserva de este día?
+              </p>
+              <button
+                type="button"
+                onClick={onConfirmBookingReplacement}
+                disabled={isBookingReplacementPending}
+                aria-label="Confirmar cambio de reserva"
+                title="Confirmar cambio de reserva"
+                className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-accent/40 bg-accent/10 text-accent transition-all hover:bg-accent/15 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                <CheckCheck className="size-4" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                onClick={onCancelBookingReplacement}
+                disabled={isBookingReplacementPending}
+                aria-label="Cancelar cambio de reserva"
+                title="Cancelar cambio de reserva"
+                className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-red-500/30 bg-red-500/5 text-red-500 transition-all hover:bg-red-500/10 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <X className="size-4" aria-hidden="true" />
+              </button>
+            </motion.div>
+          ) : (
+            <motion.button
+              key="create-booking"
+              type="button"
+              onClick={onCreateBooking}
+              initial={shouldReduceMotion ? false : { opacity: 0, x: -8 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={shouldReduceMotion ? undefined : { opacity: 0, x: 8 }}
+              transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+              className={clsx(
+                RESERVATION_CONFIRM_BUTTON_CLASS,
+                "border-accent-fill bg-accent-fill text-accent-foreground hover:opacity-90 focus-visible:ring-accent",
+              )}
+            >
+              <Plus className="size-4" aria-hidden="true" />
+              Reservar cupo
+            </motion.button>
           )}
-        >
-          <Plus className="size-4" aria-hidden="true" />
-          Reservar cupo
-        </button>
+        </AnimatePresence>
       </div>
     );
   }

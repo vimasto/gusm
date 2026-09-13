@@ -8,6 +8,7 @@ const BOOKING_WEEK_AVAILABILITY_SCHEMA = z.array(
     time_block_t0: z.string().time(),
     time_block_t1: z.string().time(),
     standard_capacity: z.number().int().positive(),
+    n_sessions_per_day: z.number().int().positive(),
     standard_count: z.number().int().nonnegative(),
     current_booking_id: z.string().uuid().nullable(),
     current_booking_status: z

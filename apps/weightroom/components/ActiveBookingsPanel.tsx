@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { CalendarCheck, CheckCheck, X } from "lucide-react";
 import clsx from "clsx";
 
@@ -47,9 +48,10 @@ export function ActiveBookingsPanel({
     }, 180);
   }
 
-  return (
+  return createPortal(
     <div
-      className="fixed top-18 bottom-0 gusm-app-overlay z-40 flex justify-center bg-overlay px-4 pt-6"
+      data-active-bookings-panel
+      className="fixed inset-0 gusm-app-overlay z-40 flex justify-center bg-overlay px-4 pt-6"
       onClick={onClose}
     >
       <section
@@ -95,24 +97,17 @@ export function ActiveBookingsPanel({
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex min-w-0 items-center gap-1">
-                      <p className="shrink-0 font-mono text-base tracking-wide text-foreground">
+                      <p className="shrink-0 text-base font-semibold text-foreground">
                         {booking.timeRange}
                       </p>
-                      <p className="truncate text-base text-muted">
-                        · {getDateLabel(booking.date)}
-                      </p>
+                      <p className="truncate text-sm text-muted">· {getDateLabel(booking.date)}</p>
                     </div>
 
-                    <span
-                      className={clsx(
-                        "shrink-0 rounded-full border px-1.5 py-0 text-sm tracking-widest",
-                        isConfirmed
-                          ? "border-accent/40 bg-accent/15 text-accent"
-                          : "border-accent/20 bg-accent/5 text-accent",
-                      )}
-                    >
-                      {isConfirmed ? "CONFIRMADA" : "RESERVA"}
-                    </span>
+                    {isConfirmed && (
+                      <span className="shrink-0 rounded-full border border-accent/40 bg-accent/15 px-1.5 py-0 text-sm text-accent">
+                        Confirmada
+                      </span>
+                    )}
                   </div>
 
                   <div className="mt-2 flex gap-2">
@@ -147,6 +142,7 @@ export function ActiveBookingsPanel({
           </div>
         )}
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }

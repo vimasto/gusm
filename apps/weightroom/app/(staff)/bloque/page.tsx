@@ -214,10 +214,8 @@ export default function CurrentBlockPage() {
       <div className="flex h-svh gusm-app-shell flex-col overflow-hidden bg-surface">
         <header className="z-20 shrink-0 border-b border-divider bg-surface">
           <UserTopBar
-            onBack={() => router.push("/reserva")}
             pageTitle="Bloque actual"
             showActiveBookings={false}
-            userName={currentUser?.userName}
             role={currentUser?.role}
             streakWeeks={currentUser?.streakWeeks}
             onGoProfile={() => router.push("/perfil")}

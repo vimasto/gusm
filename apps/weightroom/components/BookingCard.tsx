@@ -10,7 +10,7 @@ type BookingCardProps = {
   actionState: BookingActionState;
   actions?: React.ReactNode;
   detail: string;
-  detailTone?: "default" | "danger";
+  detailTone?: "default" | "danger" | "warning";
   isDisabled?: boolean;
   isSelected?: boolean;
   onSelect?: () => void;
@@ -50,7 +50,14 @@ export function BookingCard({
         {titleDetail && <span className="truncate text-sm text-muted">{titleDetail}</span>}
       </div>
       <p
-        className={clsx("mt-0.5 text-sm", detailTone === "danger" ? "text-rose-400" : "text-muted")}
+        className={clsx(
+          "mt-0.5 text-sm",
+          detailTone === "danger"
+            ? "text-rose-400"
+            : detailTone === "warning"
+              ? "text-amber-500"
+              : "text-muted",
+        )}
       >
         {detail}
       </p>

@@ -18,14 +18,19 @@ type BlockCardProps = {
   block: UserBlock;
   closureReason?: string;
   isBookingAvailable: boolean;
+  isBookingReplacementPending: boolean;
+  isBookingReplacementRequested: boolean;
   isCancellationLocked: boolean;
   isConfirmationWindowActive: boolean;
   isCurrentBlockAdmissionWindow: boolean;
+  isDirectConfirmationBooking: boolean;
   isSelected: boolean;
   isTimeBlockPast: boolean;
   onDismissActions: () => void;
   onCancelBooking: () => void;
+  onCancelBookingReplacement: () => void;
   onConfirmAttendance: () => void;
+  onConfirmBookingReplacement: () => void;
   onCreateBooking: () => void;
   onRequestAdmission: () => void;
   onSelect: () => void;
@@ -78,14 +83,19 @@ export function BlockCard({
   block,
   closureReason,
   isBookingAvailable,
+  isBookingReplacementPending,
+  isBookingReplacementRequested,
   isCancellationLocked,
   isConfirmationWindowActive,
   isCurrentBlockAdmissionWindow,
+  isDirectConfirmationBooking,
   isSelected,
   isTimeBlockPast,
   onDismissActions,
   onCancelBooking,
+  onCancelBookingReplacement,
   onConfirmAttendance,
+  onConfirmBookingReplacement,
   onCreateBooking,
   onRequestAdmission,
   onSelect,
@@ -101,6 +111,7 @@ export function BlockCard({
     totalSpots,
   });
   const isClosed = closureReason !== undefined;
+  const isDirectConfirmationWarning = actionState === "available" && isDirectConfirmationBooking;
   const canSelect =
     isClosed ||
     (!isTimeBlockPast &&
@@ -121,9 +132,13 @@ export function BlockCard({
     <BookingCard
       actionState={actionState}
       detail={
-        isClosed ? "Bloque inhabilitado" : getAvailabilityLabel(block, totalSpots, isTimeBlockPast)
+        isClosed
+          ? "Bloque inhabilitado"
+          : isDirectConfirmationWarning
+            ? "Reservar equivale a confirmar asistencia."
+            : getAvailabilityLabel(block, totalSpots, isTimeBlockPast)
       }
-      detailTone={isClosed ? "danger" : "default"}
+      detailTone={isClosed ? "danger" : isDirectConfirmationWarning ? "warning" : "default"}
       isDisabled={isTimeBlockPast}
       isSelected={isSelected}
       onSelect={canSelect ? handleSelect : undefined}
@@ -135,12 +150,16 @@ export function BlockCard({
         isSelected && !isClosed ? (
           <BookingActionControls
             actionState={actionState}
+            isBookingReplacementPending={isBookingReplacementPending}
+            isBookingReplacementRequested={isBookingReplacementRequested}
             isCancellationLocked={isCancellationLocked}
             isConfirmationWindowActive={isConfirmationWindowActive}
             isTimeBlockPast={isTimeBlockPast}
             onActionComplete={onDismissActions}
             onCancelBooking={onCancelBooking}
+            onCancelBookingReplacement={onCancelBookingReplacement}
             onConfirmAttendance={onConfirmAttendance}
+            onConfirmBookingReplacement={onConfirmBookingReplacement}
             onCreateBooking={onCreateBooking}
             onRequestAdmission={onRequestAdmission}
             onShowClosureReason={onShowClosureReason}

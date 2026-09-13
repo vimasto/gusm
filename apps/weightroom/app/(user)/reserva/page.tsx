@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AnimatePresence, motion, useDragControls, useReducedMotion } from "motion/react";
 import * as z from "zod/v4";
 import { CREATE_SUPABASE_BROWSER_CLIENT } from "@gusm/database/client";
 import {
@@ -17,7 +18,7 @@ import {
   MAX_WEEK_OFFSET,
 } from "@/components/UserCalendarBanner";
 import type { StaffWeekBookingDay } from "@/components/StaffWeekBookingList";
-import { UserTopBar } from "@/components/UserTopBar";
+import { type AppRole, UserTopBar } from "@/components/UserTopBar";
 import type { ActiveBooking } from "@/components/ActiveBookingsPanel";
 import { BlockCard, type UserBlock, type UserBookingStatus } from "@/components/BlockCard";
 import { ReservationSuccessOverlay } from "@/components/ReservationSuccessOverlay";
@@ -86,7 +87,6 @@ const SANTIAGO_TIME_FORMATTER = new Intl.DateTimeFormat("en-CA", {
   minute: "2-digit",
   hourCycle: "h23",
 });
-const SPANISH_NUMBER_FORMATTER = new Intl.NumberFormat("es-CL");
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -117,6 +117,23 @@ type BookingEntry = {
   bookingDate: Date;
 };
 type BookingClosure = z.infer<typeof BOOKING_CLOSURES_SCHEMA>["closures"][number];
+type BlockGridTransitionDirection = -1 | 1;
+
+const BLOCK_GRID_MOTION_VARIANTS = {
+  enter(direction: BlockGridTransitionDirection) {
+    return { opacity: 1, x: direction === 1 ? "-100%" : "100%" };
+  },
+  center: { opacity: 1, x: 0 },
+  exit(direction: BlockGridTransitionDirection) {
+    return { opacity: 1, x: direction === 1 ? "100%" : "-100%" };
+  },
+};
+
+function getReservationAccountLabel(role: AppRole | undefined): string | undefined {
+  if (role === "u_staff" || role === "gym_staff") return "Profesor";
+  if (role === "admin") return "Admin";
+  return undefined;
+}
 
 function getBookingDateKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
@@ -208,38 +225,27 @@ function isStandardBookingAvailable(date: Date, startTime: string): boolean {
   return isBookingDateAvailable(date) && !isTimeBlockPast(date, startTime);
 }
 
-function getMinutesUntilConfirmationOpens(date: Date, startTime: string): number {
-  const [startHourText, startMinuteText] = startTime.split(":");
-  if (startHourText === undefined || startMinuteText === undefined) return 0;
-
-  const today = getSantiagoToday();
-  const dateDifference = Math.round(
-    (Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) -
-      Date.UTC(today.getFullYear(), today.getMonth(), today.getDate())) /
-      86_400_000,
-  );
-  const nowParts = SANTIAGO_TIME_FORMATTER.formatToParts(new Date());
-  const nowMinutes = getTimePart(nowParts, "hour") * 60 + getTimePart(nowParts, "minute");
-  const startMinutes = Number(startHourText) * 60 + Number(startMinuteText);
-
-  return Math.max(0, dateDifference * 1_440 + startMinutes - 240 - nowMinutes);
-}
-
-function getConfirmationReminder(block: UserBlock | null, date: Date): string | null {
-  if (!block || !isSameDay(date, getSantiagoToday())) {
-    return "La confirmación abre 4 h antes y cierra 1 h antes del inicio.";
+function getConfirmationReminder(
+  block: UserBlock | null,
+  booking: BookingEntry | null,
+  date: Date,
+): string | null {
+  if (
+    !block ||
+    !booking ||
+    booking.status !== "reserved" ||
+    !isSameDay(date, getSantiagoToday()) ||
+    isTimeBlockPast(date, block.startTime)
+  ) {
+    return null;
   }
 
-  if (isTimeBlockPast(date, block.startTime)) return null;
   if (isConfirmationWindowActive(date, block.startTime)) {
-    return "La confirmación de este bloque está abierta y cierra 1 h antes del inicio.";
+    return `Ya puedes confirmar tu asistencia al bloque ${block.timeRange}.`;
   }
-  if (isFinalHourBeforeBlock(date, block.startTime)) {
-    return "La confirmación ya cerró para este bloque.";
-  }
+  if (isFinalHourBeforeBlock(date, block.startTime)) return null;
 
-  const minutes = getMinutesUntilConfirmationOpens(date, block.startTime);
-  return `La confirmación de este bloque abre en ${SPANISH_NUMBER_FORMATTER.format(minutes)} minutos y cierra 1 h antes del inicio.`;
+  return "La confirmación abre 4 h antes y cierra 1 h antes del inicio.";
 }
 
 function getDefaultCalendarSelection() {
@@ -269,9 +275,14 @@ export default function BookingPage() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [reservationSuccessTitle, setReservationSuccessTitle] = useState<string | null>(null);
   const [reservationError, setReservationError] = useState<string | null>(null);
+  const [isBookingReplacementRequested, setIsBookingReplacementRequested] = useState(false);
+  const [isBookingReplacementPending, setIsBookingReplacementPending] = useState(false);
   const [isAdmissionRequested, setIsAdmissionRequested] = useState(false);
   const [closures, setClosures] = useState<BookingClosure[]>([]);
   const [closureNotice, setClosureNotice] = useState<string | null>(null);
+  const blockSwipeControls = useDragControls();
+  const shouldReduceMotion = useReducedMotion();
+  const blockGridTransitionDirection = useRef<BlockGridTransitionDirection>(1);
 
   const selectedDate = getWeekDates(weekOffset)[dayIdx]!;
   const queryClient = useQueryClient();
@@ -313,6 +324,7 @@ export default function BookingPage() {
   const selectedWeekAvailability = bookingAvailabilityQueries[weekOffset + 1]?.data;
   const isSelectedWeekAvailabilityReady = selectedWeekAvailability !== undefined;
   const totalSpots = selectedWeekAvailability?.[0]?.standard_capacity ?? MOCK_TOTAL_SPOTS;
+  const dailyBookingLimit = selectedWeekAvailability?.[0]?.n_sessions_per_day ?? 1;
 
   const bookingEntries = useMemo<BookingEntry[]>(() => {
     const entries: BookingEntry[] = [];
@@ -345,6 +357,15 @@ export default function BookingPage() {
       (entry) =>
         getBookingDateKey(entry.bookingDate) === selectedDateKey && entry.blockId === selectedId,
     ) ?? null;
+  const selectedDateBookings = bookingEntries.filter(
+    (entry) => getBookingDateKey(entry.bookingDate) === selectedDateKey,
+  );
+  const replacementSourceBooking =
+    dailyBookingLimit === 1 &&
+    selectedDateBookings.length === 1 &&
+    !selectedDateBookings[0]?.isOvercapacity
+      ? selectedDateBookings[0]
+      : null;
   const blocks = useMemo<UserBlock[]>(() => {
     return BASE_BLOCKS.map((block) => {
       const isStudentOnlyBlock = isStudentUser && block.id === 7;
@@ -379,7 +400,7 @@ export default function BookingPage() {
   }, [bookingEntries, isStudentUser, selectedDate, selectedDateKey]);
 
   const selectedBlock = blocks.find((b) => b.id === selectedId) ?? null;
-  const confirmationReminder = getConfirmationReminder(selectedBlock, selectedDate);
+  const confirmationReminder = getConfirmationReminder(selectedBlock, booking, selectedDate);
 
   const staffWeekBookingDays = useMemo<StaffWeekBookingDay[]>(() => {
     return getWeekDates(weekOffset).map((date) => {
@@ -449,7 +470,7 @@ export default function BookingPage() {
       });
     }
 
-    return result.sort((left, right) => left.date.getTime() - right.date.getTime()).slice(0, 7);
+    return result.sort((left, right) => left.date.getTime() - right.date.getTime()).slice(0, 8);
   }, [bookingEntries]);
 
   useEffect(() => {
@@ -529,8 +550,12 @@ export default function BookingPage() {
   // ── Handlers de calendario ────────────────────────────────────────────────
 
   function handleSelectDay(index: number) {
+    if (index !== dayIdx) {
+      blockGridTransitionDirection.current = index < dayIdx ? 1 : -1;
+    }
     setDayIdx(index);
     setIsAdmissionRequested(false);
+    setIsBookingReplacementRequested(false);
     const date = getWeekDates(weekOffset)[index];
     const nextBooking = date
       ? bookingEntries.find(
@@ -553,34 +578,22 @@ export default function BookingPage() {
 
     setSelectedId((currentBlockId) => (currentBlockId === blockId ? null : blockId));
     setIsAdmissionRequested(false);
+    setIsBookingReplacementRequested(false);
   }
 
-  function handleWeekChange(offset: number) {
+  function handleWeekChange(offset: number, nextDayIndex = dayIdx) {
     const clamped = Math.max(MIN_WEEK_OFFSET, Math.min(MAX_WEEK_OFFSET, offset));
-    const firstAvailableDayIndex = getWeekDates(clamped).findIndex(isBookingDateAvailable);
-    const nextDayIndex = clamped < 0 || firstAvailableDayIndex < 0 ? 4 : firstAvailableDayIndex;
+    if (clamped !== weekOffset) {
+      blockGridTransitionDirection.current = clamped < weekOffset ? 1 : -1;
+    }
     setWeekOffset(clamped);
     setIsAdmissionRequested(false);
+    setIsBookingReplacementRequested(false);
     setDayIdx(nextDayIndex);
     const nextDate = getWeekDates(clamped)[nextDayIndex];
     const nextBooking = nextDate
       ? bookingEntries.find(
           (entry) => getBookingDateKey(entry.bookingDate) === getBookingDateKey(nextDate),
-        )
-      : undefined;
-    setSelectedId(nextBooking?.blockId ?? null);
-  }
-
-  function handleGoToday() {
-    setWeekOffset(defaultCalendarSelection.weekOffset);
-    setIsAdmissionRequested(false);
-    setDayIdx(defaultCalendarSelection.dayIndex);
-    const date = getWeekDates(defaultCalendarSelection.weekOffset)[
-      defaultCalendarSelection.dayIndex
-    ];
-    const nextBooking = date
-      ? bookingEntries.find(
-          (entry) => getBookingDateKey(entry.bookingDate) === getBookingDateKey(date),
         )
       : undefined;
     setSelectedId(nextBooking?.blockId ?? null);
@@ -609,6 +622,37 @@ export default function BookingPage() {
 
     if (data.status === "confirmed") setReservationSuccessTitle("Reserva confirmada");
     else setReservationSuccessTitle("Reserva creada");
+    await refreshBookingWeek(bookingDate);
+  }
+
+  async function replaceDailyBooking(
+    sourceBooking: BookingEntry,
+    bookingDate: Date,
+    timeBlockId: number,
+  ) {
+    setReservationError(null);
+    setIsBookingReplacementPending(true);
+    const supabase = CREATE_SUPABASE_BROWSER_CLIENT();
+    const { data, error } = await supabase.rpc("replace_daily_booking", {
+      p_booking_date: getBookingDateKey(bookingDate),
+      p_source_booking_id: sourceBooking.bookingId,
+      p_time_block_id: timeBlockId,
+    });
+
+    setIsBookingReplacementPending(false);
+
+    if (error) {
+      setReservationError(
+        "No fue posible cambiar la reserva. Actualiza la disponibilidad e inténtalo otra vez.",
+      );
+      return;
+    }
+
+    setIsBookingReplacementRequested(false);
+    setSelectedId(null);
+    setReservationSuccessTitle(
+      data.status === "confirmed" ? "Reserva confirmada" : "Reserva creada",
+    );
     await refreshBookingWeek(bookingDate);
   }
 
@@ -656,7 +700,33 @@ export default function BookingPage() {
       return;
     }
 
+    if (replacementSourceBooking) {
+      setIsBookingReplacementRequested(true);
+      return;
+    }
+
+    setSelectedId(null);
     void createBooking(selectedDate, selectedBlock.id);
+  }
+
+  function handleCancelBookingReplacement() {
+    if (isBookingReplacementPending) return;
+
+    setIsBookingReplacementRequested(false);
+    setSelectedId(null);
+  }
+
+  function handleConfirmBookingReplacement() {
+    if (
+      !selectedBlock ||
+      !replacementSourceBooking ||
+      isBookingReplacementPending ||
+      !isStandardBookingAvailable(selectedDate, selectedBlock.startTime)
+    ) {
+      return;
+    }
+
+    void replaceDailyBooking(replacementSourceBooking, selectedDate, selectedBlock.id);
   }
 
   function handleCancel() {
@@ -833,6 +903,41 @@ export default function BookingPage() {
     router.push("/configuracion");
   }
 
+  function handleBlockGridDragEnd(
+    _event: MouseEvent | TouchEvent | PointerEvent,
+    info: { offset: { x: number }; velocity: { x: number } },
+  ) {
+    const horizontalDistance = Math.abs(info.offset.x);
+    const horizontalVelocity = Math.abs(info.velocity.x);
+    if (horizontalDistance < 64 && horizontalVelocity < 600) return;
+
+    const direction = info.offset.x === 0 ? info.velocity.x : info.offset.x;
+    const dayDelta = direction < 0 ? 1 : -1;
+    const nextDayIndex = dayIdx + dayDelta;
+
+    if (nextDayIndex >= 0 && nextDayIndex < getWeekDates(weekOffset).length) {
+      handleSelectDay(nextDayIndex);
+      return;
+    }
+
+    const nextWeekOffset = Math.max(
+      MIN_WEEK_OFFSET,
+      Math.min(MAX_WEEK_OFFSET, weekOffset + dayDelta),
+    );
+    if (nextWeekOffset === weekOffset) return;
+
+    handleWeekChange(nextWeekOffset, dayDelta < 0 ? 4 : 0);
+  }
+
+  function handleBlockSwipePointerDown(event: React.PointerEvent<HTMLDivElement>) {
+    blockSwipeControls.start(event, { distanceThreshold: 12 });
+  }
+
+  function handleDismissBlockActions() {
+    setIsBookingReplacementRequested(false);
+    setSelectedId(null);
+  }
+
   async function handleSignOut() {
     const supabase = CREATE_SUPABASE_BROWSER_CLIENT();
     const { error } = await supabase.auth.signOut();
@@ -847,7 +952,7 @@ export default function BookingPage() {
   }
 
   const blockCards: React.ReactNode[] = [];
-  for (const block of blocks) {
+  for (const [blockIndex, block] of blocks.entries()) {
     const isStudentOnlyBlock = isStudentUser && block.id === 7;
     const closureReason = isStudentOnlyBlock
       ? undefined
@@ -867,8 +972,13 @@ export default function BookingPage() {
           isSelectedWeekAvailabilityReady &&
           isStandardBookingAvailable(selectedDate, block.startTime)
         }
+        isBookingReplacementPending={
+          isBookingReplacementPending && isBookingReplacementRequested && block.id === selectedId
+        }
+        isBookingReplacementRequested={isBookingReplacementRequested && block.id === selectedId}
         isCancellationLocked={isConfirmedBookingCancellationLocked(selectedDate, block.startTime)}
         isConfirmationWindowActive={isConfirmationWindowActive(selectedDate, block.startTime)}
+        isDirectConfirmationBooking={isFinalHourBeforeBlock(selectedDate, block.startTime)}
         isTimeBlockPast={isStudentOnlyBlock || isTimeBlockPast(selectedDate, block.startTime)}
         isCurrentBlockAdmissionWindow={
           !isStudentOnlyBlock &&
@@ -876,9 +986,11 @@ export default function BookingPage() {
         }
         closureReason={closureReason}
         onSelect={() => handleSelectBlock(block.id)}
-        onDismissActions={() => setSelectedId(null)}
+        onDismissActions={handleDismissBlockActions}
         onCancelBooking={handleCancel}
+        onCancelBookingReplacement={handleCancelBookingReplacement}
         onConfirmAttendance={handleConfirm}
+        onConfirmBookingReplacement={handleConfirmBookingReplacement}
         onCreateBooking={handleInscribe}
         onRequestAdmission={handleRequestAdmission}
         onShowClosureReason={() => {
@@ -886,6 +998,17 @@ export default function BookingPage() {
         }}
       />,
     );
+
+    if (blockIndex < blocks.length - 1) {
+      blockCards.push(
+        <div
+          key={`swipe-band-${block.id}`}
+          aria-hidden="true"
+          onPointerDown={handleBlockSwipePointerDown}
+          className="h-2 touch-pan-y md:hidden"
+        />,
+      );
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -895,7 +1018,7 @@ export default function BookingPage() {
         {isStaffBookingView ? (
           <header className="sticky top-0 z-20 border-b border-divider bg-surface select-none">
             <UserTopBar
-              userName={currentUser?.userName}
+              accountLabel={getReservationAccountLabel(currentUser?.role)}
               role={currentUser?.role ?? "u_staff"}
               streakWeeks={currentUser?.streakWeeks}
               onGoProfile={handleGoProfile}
@@ -904,11 +1027,13 @@ export default function BookingPage() {
               activeBookings={activeBookings}
               onConfirmBooking={handleConfirmActiveBooking}
               onCancelBooking={handleCancelActiveBooking}
+              showUserName={false}
             />
             <WeekIndicator compact weekOffset={weekOffset} onWeekChange={handleWeekChange} />
           </header>
         ) : (
           <UserCalendarBanner
+            accountLabel={getReservationAccountLabel(currentUser?.role)}
             userName={currentUser?.userName ?? ""}
             role={currentUser?.role ?? "student"}
             streakWeeks={currentUser?.streakWeeks ?? 0}
@@ -916,7 +1041,6 @@ export default function BookingPage() {
             weekOffset={weekOffset}
             onSelectDay={handleSelectDay}
             onWeekChange={handleWeekChange}
-            onGoToday={handleGoToday}
             onGoProfile={handleGoProfile}
             onGoCheckIn={handleGoCheckIn}
             onGoOvercapacity={handleGoCurrentBlock}
@@ -925,6 +1049,7 @@ export default function BookingPage() {
             activeBookings={activeBookings}
             onConfirmBooking={handleConfirmActiveBooking}
             onCancelBooking={handleCancelActiveBooking}
+            showUserName={false}
             weekSelector={<WeekIndicator weekOffset={weekOffset} onWeekChange={handleWeekChange} />}
             confirmationReminder={
               confirmationReminder ? (
@@ -948,9 +1073,54 @@ export default function BookingPage() {
             onShowClosureReason={handleShowStaffClosureReason}
           />
         ) : (
-          <div className="flex flex-1 flex-col gap-2 overflow-y-auto overscroll-contain px-4 pt-3 pb-[calc(5.5rem+env(safe-area-inset-bottom))]">
-            {blockCards}
-            <div className="h-2" />
+          <div className="relative min-h-0 flex-1 overflow-hidden">
+            <motion.div
+              drag="x"
+              dragConstraints={{ left: -24, right: 24 }}
+              dragControls={blockSwipeControls}
+              dragElastic={0.25}
+              dragListener={false}
+              dragSnapToOrigin
+              onDragEnd={handleBlockGridDragEnd}
+              className="flex h-full flex-col gap-2 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pt-3 pb-[calc(5.5rem+env(safe-area-inset-bottom))]"
+            >
+              <AnimatePresence
+                initial={false}
+                mode="popLayout"
+                custom={blockGridTransitionDirection.current}
+              >
+                <motion.div
+                  key={`${weekOffset}-${dayIdx}`}
+                  custom={blockGridTransitionDirection.current}
+                  variants={BLOCK_GRID_MOTION_VARIANTS}
+                  initial={shouldReduceMotion ? { opacity: 0 } : "enter"}
+                  animate="center"
+                  exit={shouldReduceMotion ? { opacity: 0 } : "exit"}
+                  transition={
+                    shouldReduceMotion
+                      ? { duration: 0.12 }
+                      : { type: "spring", stiffness: 280, damping: 30, mass: 0.8 }
+                  }
+                  className="flex w-full flex-col gap-0 md:gap-2"
+                >
+                  {blockCards}
+                  <div className="h-2" />
+                </motion.div>
+              </AnimatePresence>
+            </motion.div>
+
+            <div className="pointer-events-none absolute inset-x-0 inset-y-0 z-10 md:hidden">
+              <div
+                aria-hidden="true"
+                onPointerDown={handleBlockSwipePointerDown}
+                className="pointer-events-auto absolute inset-y-0 left-0 w-5 touch-pan-y"
+              />
+              <div
+                aria-hidden="true"
+                onPointerDown={handleBlockSwipePointerDown}
+                className="pointer-events-auto absolute inset-y-0 right-0 w-5 touch-pan-y"
+              />
+            </div>
           </div>
         )}
 

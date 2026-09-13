@@ -1055,6 +1055,7 @@ export type Database = {
           current_booking_id: string
           current_booking_is_overcapacity: boolean
           current_booking_status: Database["public"]["Enums"]["booking_status"]
+          n_sessions_per_day: number
           standard_capacity: number
           standard_count: number
           time_block_id: number
@@ -1208,6 +1209,37 @@ export type Database = {
       remove_weekly_time_block_closure: {
         Args: { p_iso_weekday: number; p_time_block_id: number }
         Returns: boolean
+      }
+      replace_daily_booking: {
+        Args: {
+          p_booking_date: string
+          p_source_booking_id: string
+          p_time_block_id: number
+        }
+        Returns: {
+          absent_at: string | null
+          admission_source: Database["public"]["Enums"]["booking_admission_source"]
+          booked_at: string
+          booking_date: string
+          booking_id: string
+          cancelled_at: string | null
+          confirmed_at: string | null
+          created_at: string
+          is_overcapacity: boolean
+          late_qr_authorized_at: string | null
+          present_at: string | null
+          qr_scanned_at: string | null
+          status: Database["public"]["Enums"]["booking_status"]
+          time_block_id: number
+          updated_at: string
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "booking"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       request_current_block_admission: {
         Args: { p_user_id: string }

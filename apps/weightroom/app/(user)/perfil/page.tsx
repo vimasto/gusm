@@ -334,7 +334,6 @@ export default function ProfilePage() {
       <div className="flex h-svh gusm-app-shell flex-col overflow-hidden">
         <header className="z-20 shrink-0 border-b border-divider bg-surface">
           <UserTopBar
-            onBack={() => router.push("/reserva")}
             pageTitle="Perfil"
             userName={profile?.userName}
             role={profile?.role}

@@ -1,10 +1,10 @@
+import useEmblaCarousel from "embla-carousel-react";
 import { useEffect, useRef } from "react";
 import clsx from "clsx";
 import type { ActiveBooking } from "@/components/ActiveBookingsPanel";
 import { type AppRole, UserTopBar } from "@/components/UserTopBar";
 
 const DAY_LETTERS = ["L", "M", "X", "J", "V"];
-const SWIPE_THRESHOLD = 42;
 const SANTIAGO_TIME_ZONE = "America/Santiago";
 const SANTIAGO_DATE_FORMATTER = new Intl.DateTimeFormat("en-CA", {
   timeZone: SANTIAGO_TIME_ZONE,
@@ -15,6 +15,13 @@ const SANTIAGO_DATE_FORMATTER = new Intl.DateTimeFormat("en-CA", {
 
 export const MIN_WEEK_OFFSET = -1;
 export const MAX_WEEK_OFFSET = 1;
+const WEEK_OFFSETS = [MIN_WEEK_OFFSET, 0, MAX_WEEK_OFFSET] as const;
+const WEEK_CAROUSEL_OPTIONS = {
+  align: "start",
+  containScroll: "trimSnaps",
+  dragFree: false,
+  duration: 24,
+} as const;
 
 function getDatePart(parts: Intl.DateTimeFormatPart[], type: "day" | "month" | "year"): number {
   const part = parts.find((candidate) => candidate.type === type);
@@ -62,6 +69,7 @@ export function isBookingDateAvailable(date: Date): boolean {
 }
 
 type UserCalendarBannerProps = {
+  accountLabel?: string;
   confirmationReminder?: React.ReactNode;
   userName: string;
   role: AppRole;
@@ -70,7 +78,6 @@ type UserCalendarBannerProps = {
   weekOffset: number;
   onSelectDay: (index: number) => void;
   onWeekChange: (offset: number) => void;
-  onGoToday: () => void;
   onGoProfile: () => void;
   onGoCheckIn?: () => void;
   onGoOvercapacity?: () => void;
@@ -80,6 +87,7 @@ type UserCalendarBannerProps = {
   activeBookings: ActiveBooking[];
   onConfirmBooking: (bookingKey: string) => void;
   onCancelBooking: (bookingKey: string) => void;
+  showUserName?: boolean;
   weekSelector?: React.ReactNode;
 };
 
@@ -91,6 +99,7 @@ function getSelectionPillClassName(isActive: boolean): string {
 }
 
 export function UserCalendarBanner({
+  accountLabel,
   confirmationReminder,
   userName,
   role,
@@ -99,7 +108,6 @@ export function UserCalendarBanner({
   weekOffset,
   onSelectDay,
   onWeekChange,
-  onGoToday,
   onGoProfile,
   onGoCheckIn,
   onGoOvercapacity,
@@ -109,65 +117,46 @@ export function UserCalendarBanner({
   activeBookings,
   onConfirmBooking,
   onCancelBooking,
+  showUserName,
   weekSelector,
 }: UserCalendarBannerProps) {
   const today = getSantiagoToday();
-  const week = getWeekDates(weekOffset);
-  const isTodaySelected = isSameDay(week[selectedDay]!, today);
-  const bannerRef = useRef<HTMLElement>(null);
-  const startX = useRef<number | null>(null);
+  const initialWeekIndex = useRef(weekOffset - MIN_WEEK_OFFSET).current;
+  const [weekCarouselRef, weekCarouselApi] = useEmblaCarousel({
+    ...WEEK_CAROUSEL_OPTIONS,
+    startIndex: initialWeekIndex,
+  });
 
   useEffect(() => {
-    const element = bannerRef.current;
-    if (!element) return;
+    if (!weekCarouselApi) return;
 
-    const onStart = (event: TouchEvent | MouseEvent) => {
-      const clientX = "touches" in event ? event.touches[0]?.clientX : event.clientX;
-      if (clientX === undefined) return;
-      startX.current = clientX;
-    };
-
-    const onEnd = (event: TouchEvent | MouseEvent) => {
-      if (startX.current === null) return;
-
-      const clientX = "changedTouches" in event ? event.changedTouches[0]?.clientX : event.clientX;
-      if (clientX === undefined) return;
-
-      const distance = clientX - startX.current;
-      startX.current = null;
-      if (Math.abs(distance) <= SWIPE_THRESHOLD) return;
-
-      const nextOffset =
-        distance < 0
-          ? Math.min(weekOffset + 1, MAX_WEEK_OFFSET)
-          : Math.max(weekOffset - 1, MIN_WEEK_OFFSET);
-
+    function handleCarouselSelect(api: NonNullable<typeof weekCarouselApi>) {
+      const nextOffset = api.selectedScrollSnap() + MIN_WEEK_OFFSET;
       if (nextOffset !== weekOffset) onWeekChange(nextOffset);
-    };
+    }
 
-    element.addEventListener("touchstart", onStart, { passive: true });
-    element.addEventListener("touchend", onEnd);
-    element.addEventListener("mousedown", onStart);
-    document.addEventListener("mouseup", onEnd);
-
+    weekCarouselApi.on("select", handleCarouselSelect);
     return () => {
-      element.removeEventListener("touchstart", onStart);
-      element.removeEventListener("touchend", onEnd);
-      element.removeEventListener("mousedown", onStart);
-      document.removeEventListener("mouseup", onEnd);
+      weekCarouselApi.off("select", handleCarouselSelect);
     };
-  }, [onWeekChange, weekOffset]);
+  }, [onWeekChange, weekCarouselApi, weekOffset]);
+
+  useEffect(() => {
+    if (!weekCarouselApi) return;
+
+    const selectedWeekIndex = weekOffset - MIN_WEEK_OFFSET;
+    if (weekCarouselApi.selectedScrollSnap() !== selectedWeekIndex) {
+      weekCarouselApi.scrollTo(selectedWeekIndex);
+    }
+  }, [weekCarouselApi, weekOffset]);
 
   return (
-    <header
-      ref={bannerRef}
-      className="sticky top-0 z-20 border-b border-divider bg-surface select-none"
-    >
+    <header className="sticky top-0 z-20 border-b border-divider bg-surface select-none">
       <UserTopBar
+        accountLabel={accountLabel}
         userName={userName}
         role={role}
         streakWeeks={streakWeeks}
-        onGoToday={onGoToday}
         onGoProfile={onGoProfile}
         onGoCheckIn={onGoCheckIn}
         onGoOvercapacity={onGoOvercapacity}
@@ -177,55 +166,78 @@ export function UserCalendarBanner({
         activeBookings={activeBookings}
         onConfirmBooking={onConfirmBooking}
         onCancelBooking={onCancelBooking}
-        isTodaySelected={isTodaySelected}
+        showUserName={showUserName}
       />
 
       {weekSelector}
 
-      <div className="grid grid-cols-5 gap-1 px-2 pb-4">
-        {week.map((date, index) => {
-          const isSelected = index === selectedDay;
-          const isToday = isSameDay(date, today);
-          const isBookingDateAvailableForDate = isBookingDateAvailable(date);
-          const isDateSelectable = weekOffset <= 0 || isBookingDateAvailableForDate;
+      <div ref={weekCarouselRef} className="touch-pan-y overflow-hidden">
+        <div className="flex">
+          {WEEK_OFFSETS.map((offset) => {
+            const slideWeek = getWeekDates(offset);
+            const isSelectedWeek = offset === weekOffset;
 
-          return (
-            <button
-              key={index}
-              type="button"
-              onClick={isDateSelectable ? () => onSelectDay(index) : undefined}
-              disabled={!isDateSelectable}
-              className="flex flex-col items-center gap-1.5 rounded-2xl py-1 transition-all disabled:cursor-not-allowed disabled:opacity-35"
-            >
-              <span
-                className={clsx(
-                  "text-base font-medium tracking-[0.12em]",
-                  isSelected ? "text-accent" : "text-dim",
-                )}
-              >
-                {DAY_LETTERS[index]}
-              </span>
+            return (
+              <div key={offset} aria-hidden={!isSelectedWeek} className="min-w-0 flex-[0_0_100%]">
+                <div className="grid grid-cols-5 gap-1 px-2 pb-[5px]">
+                  {slideWeek.map((date, index) => {
+                    const isSelected = isSelectedWeek && index === selectedDay;
+                    const isToday = isSameDay(date, today);
+                    const isBookingDateAvailableForDate = isBookingDateAvailable(date);
+                    const isDateSelectable = offset <= 0 || isBookingDateAvailableForDate;
+                    const isInteractive = isSelectedWeek && isDateSelectable;
 
-              <div
-                className={clsx(
-                  "flex size-10 items-center justify-center rounded-full transition-all duration-200",
-                  isSelected ? "bg-accent shadow-accent" : "bg-input",
-                )}
-              >
-                <span
-                  className={clsx(
-                    "text-sm font-bold",
-                    isSelected ? "text-accent-foreground" : isToday ? "text-accent" : "text-muted",
-                  )}
-                >
-                  {date.getDate()}
-                </span>
+                    return (
+                      <button
+                        key={index}
+                        type="button"
+                        onClick={isInteractive ? () => onSelectDay(index) : undefined}
+                        disabled={!isInteractive}
+                        tabIndex={isSelectedWeek ? 0 : -1}
+                        className="flex flex-col items-center gap-1.5 rounded-2xl py-[3px] transition-all disabled:cursor-not-allowed disabled:opacity-35"
+                      >
+                        <span
+                          className={clsx(
+                            "text-sm font-medium tracking-[0.12em]",
+                            isSelected ? "text-accent" : "text-dim",
+                          )}
+                        >
+                          {DAY_LETTERS[index]}
+                        </span>
+
+                        <div
+                          className={clsx(
+                            "flex size-10 items-center justify-center rounded-full border transition-[background-color,box-shadow] duration-200",
+                            isSelected
+                              ? "border-accent bg-accent shadow-accent"
+                              : isToday
+                                ? "border-accent/55 bg-input"
+                                : "border-transparent bg-input",
+                          )}
+                        >
+                          <span
+                            className={clsx(
+                              "text-sm font-bold",
+                              isSelected
+                                ? "text-accent-foreground"
+                                : isToday
+                                  ? "text-accent"
+                                  : "text-muted",
+                            )}
+                          >
+                            {date.getDate()}
+                          </span>
+                        </div>
+
+                        <div className={getSelectionPillClassName(isSelected)} />
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-
-              <div className={getSelectionPillClassName(isSelected)} />
-            </button>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
 
       {confirmationReminder && (
@@ -251,7 +263,7 @@ export function WeekIndicator({ compact = false, weekOffset, onWeekChange }: Wee
   return (
     <div
       className={clsx(
-        "flex shrink-0 items-center justify-center border-b border-divider bg-surface py-2",
+        "flex shrink-0 items-center justify-center border-b border-divider bg-surface pt-0 pb-1.5",
         compact ? "gap-1 px-2" : "gap-1 px-2",
       )}
     >
@@ -272,7 +284,7 @@ export function WeekIndicator({ compact = false, weekOffset, onWeekChange }: Wee
             <span
               className={clsx(
                 "transition-all duration-200",
-                compact ? "text-sm tracking-wide" : "text-base tracking-[0.05em] whitespace-nowrap",
+                compact ? "text-sm tracking-wide" : "text-sm tracking-[0.05em] whitespace-nowrap",
                 isActive ? "text-accent/60" : "text-dim",
               )}
             >

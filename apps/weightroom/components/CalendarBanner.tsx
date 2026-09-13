@@ -9,19 +9,12 @@ type CalendarBannerProps = {
   today: Date;
   selectedDay: number;
   onSelectDay: (index: number) => void;
-  onGoToday: () => void;
 };
 
-export function CalendarBanner({
-  week,
-  today,
-  selectedDay,
-  onSelectDay,
-  onGoToday,
-}: CalendarBannerProps) {
+export function CalendarBanner({ week, today, selectedDay, onSelectDay }: CalendarBannerProps) {
   return (
     <header className="sticky top-0 z-20 border-b border-divider bg-surface">
-      <UserTopBar onGoToday={onGoToday} isTodaySelected={isSameDay(week[selectedDay]!, today)} />
+      <UserTopBar />
 
       <div className="grid grid-cols-5 gap-1 px-2 pb-4">
         {week.map((date, index) => {
@@ -43,8 +36,12 @@ export function CalendarBanner({
 
               <div
                 className={clsx(
-                  "flex size-10 items-center justify-center rounded-full transition-colors duration-200",
-                  isSelected ? "bg-accent shadow-accent" : "bg-input",
+                  "flex size-10 items-center justify-center rounded-full border transition-[background-color,box-shadow] duration-200",
+                  isSelected
+                    ? "border-accent bg-accent shadow-accent"
+                    : isToday
+                      ? "border-accent/55 bg-input"
+                      : "border-transparent bg-input",
                 )}
               >
                 <span
