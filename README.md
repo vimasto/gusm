@@ -114,5 +114,6 @@ un solo uso ocurren en el backend, no en el navegador.
 
 ## Pendientes de producto
 
+- PWA instalable: tras definir el dominio HTTPS productivo, agregar manifest (`display: standalone`), íconos web y Apple, metadata de pantalla de inicio y Service Worker. Verificar que en iOS, al añadirla a Inicio con “Open as Web App” activado, GYMU abra sin la interfaz de Safari. Este hito debe preceder a notificaciones push.
 - Perfil: permitir compartir en redes un sticker de imagen con calendario mensual de asistencias y racha. La implementación debe capturar o componer solo datos ya visibles al usuario; no usar cámara ni subir imágenes hasta definir el flujo nativo.
 - Términos: la versión vigente es la `2`. Al actualizar el texto institucional de `/terminos`, incrementar `system_settings.current_terms_version` en la misma entrega.
