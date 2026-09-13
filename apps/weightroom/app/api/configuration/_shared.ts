@@ -28,10 +28,16 @@ export function createResponse(
   status: number,
   body: Record<string, unknown>,
 ) {
-  const result = NextResponse.json(body, {
-    status,
-    headers: { "Cache-Control": "no-store" },
-  });
+  const result =
+    status === 204
+      ? new NextResponse(null, {
+          status,
+          headers: { "Cache-Control": "no-store" },
+        })
+      : NextResponse.json(body, {
+          status,
+          headers: { "Cache-Control": "no-store" },
+        });
 
   for (const cookie of response.cookies.getAll()) {
     result.cookies.set(cookie.name, cookie.value, cookie);

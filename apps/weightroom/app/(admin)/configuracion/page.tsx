@@ -665,10 +665,8 @@ export default function ConfigurationPage() {
       <div className="relative flex h-svh gusm-app-shell flex-col overflow-hidden bg-surface">
         <header className="z-20 shrink-0 border-b border-divider bg-surface">
           <UserTopBar
-            onBack={() => router.back()}
             pageTitle="Configuración"
             showActiveBookings={false}
-            userName={currentUser?.userName}
             role={currentUser?.role}
             onGoProfile={() => router.push("/perfil")}
             onSignOut={signOut}
