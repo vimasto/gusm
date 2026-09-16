@@ -4,6 +4,7 @@ import Script from "next/script";
 import "./globals.css";
 import { clsx } from "clsx";
 import { QueryProvider } from "@/components/QueryProvider";
+import { SileoToaster } from "@/components/SileoToaster";
 
 const montserrat = localFont({
   src: "./fonts/Montserrat-VariableFont_wght.ttf",
@@ -54,6 +55,7 @@ export default function RootLayout({
         )}
       >
         <QueryProvider>{children}</QueryProvider>
+        <SileoToaster />
       </body>
     </html>
   );

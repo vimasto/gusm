@@ -4,6 +4,32 @@
 
 @theme inline {
   --font-sans: var(--font-montserrat);
+  --color-chart-scale-pattern-color: var(--chart-scale-pattern-color);
+  --color-chart-scale-05: var(--chart-scale-05);
+  --color-chart-scale-04: var(--chart-scale-04);
+  --color-chart-scale-03: var(--chart-scale-03);
+  --color-chart-scale-02: var(--chart-scale-02);
+  --color-chart-scale-01: var(--chart-scale-01);
+  --color-chart-label: var(--chart-label);
+  --color-chart-marker-foreground: var(--chart-marker-foreground);
+  --color-chart-marker-border: var(--chart-marker-border);
+  --color-chart-marker-background: var(--chart-marker-background);
+  --color-chart-tooltip-muted: var(--chart-tooltip-muted);
+  --color-chart-tooltip-foreground: var(--chart-tooltip-foreground);
+  --color-chart-tooltip-background: var(--chart-tooltip-background);
+  --chart-brush-border: var(--chart-brush-border);
+  --color-chart-grid: var(--chart-grid);
+  --color-chart-crosshair: var(--chart-crosshair);
+  --chart-line-secondary: var(--chart-line-secondary);
+  --chart-line-primary: var(--chart-line-primary);
+  --color-chart-foreground-muted: var(--chart-foreground-muted);
+  --color-chart-foreground: var(--chart-foreground);
+  --color-chart-background: var(--chart-background);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
 }
 
 @theme {
@@ -39,7 +65,37 @@
 
 :root {
   --font-size-bottom-navigation: calc(var(--text-sm) - 0.0625rem);
+  --sileo-state-action: var(--color-capacity-segment-blue) !important;
+  --sileo-state-error: var(--color-capacity-segment-red) !important;
+  --sileo-state-info: var(--color-capacity-segment-blue) !important;
+  --sileo-state-warning: var(--color-capacity-segment-yellow) !important;
   color-scheme: dark;
+  --chart-1: var(--color-capacity-segment-blue);
+  --chart-2: var(--color-accent);
+  --chart-3: var(--color-capacity-segment-red);
+  --chart-4: var(--color-foreground-muted);
+  --chart-5: var(--color-muted);
+  --chart-background: var(--color-surface);
+  --chart-foreground: var(--color-foreground);
+  --chart-foreground-muted: var(--color-muted);
+  --chart-line-primary: var(--chart-1);
+  --chart-line-secondary: var(--chart-2);
+  --chart-crosshair: var(--color-accent);
+  --chart-grid: var(--color-divider);
+  --chart-brush-border: var(--chart-grid);
+  --chart-tooltip-background: #181818;
+  --chart-tooltip-foreground: var(--color-foreground);
+  --chart-tooltip-muted: var(--color-muted);
+  --chart-marker-background: var(--color-input);
+  --chart-marker-border: var(--color-divider);
+  --chart-marker-foreground: var(--color-foreground);
+  --chart-label: var(--color-muted);
+  --chart-scale-01: #0a0a0a;
+  --chart-scale-02: #132331;
+  --chart-scale-03: #1c415e;
+  --chart-scale-04: var(--color-capacity-segment-blue);
+  --chart-scale-05: #4f91c0;
+  --chart-scale-pattern-color: var(--color-surface);
 }
 
 :root[data-theme="light"] {
@@ -60,6 +116,24 @@
   --color-foreground: #1c1b18;
   --color-foreground-muted: #45423d;
   --color-overlay: rgb(28 27 24 / 52%);
+  --chart-background: var(--color-surface);
+  --chart-foreground: var(--color-foreground);
+  --chart-foreground-muted: var(--color-muted);
+  --chart-grid: var(--color-divider);
+  --chart-brush-border: var(--chart-grid);
+  --chart-tooltip-background: #e5e9eb;
+  --chart-tooltip-foreground: var(--color-foreground);
+  --chart-tooltip-muted: var(--color-muted);
+  --chart-marker-background: var(--color-input);
+  --chart-marker-border: var(--color-divider);
+  --chart-marker-foreground: var(--color-foreground);
+  --chart-label: var(--color-muted);
+  --chart-scale-01: #ecebe6;
+  --chart-scale-02: #c7d8e4;
+  --chart-scale-03: #8cafc8;
+  --chart-scale-04: var(--color-capacity-segment-blue);
+  --chart-scale-05: var(--color-accent);
+  --chart-scale-pattern-color: var(--color-surface);
 }
 
 :root[data-theme="light"] .routine-exercise-guide-frame {
@@ -76,6 +150,32 @@
 :root[data-theme-switching] *::after {
   transition-duration: 0s !important;
   transition-delay: 0s !important;
+}
+
+[data-sileo-viewport] {
+  z-index: 45 !important;
+}
+
+[data-sileo-header-inner] {
+  justify-content: center;
+}
+
+[data-sileo-title] {
+  font-family: var(--font-montserrat) !important;
+  font-size: var(--text-sm) !important;
+  font-weight: 600 !important;
+  text-align: center;
+  text-transform: none !important;
+}
+
+[data-sileo-description] {
+  font-family: var(--font-montserrat) !important;
+  font-size: var(--text-sm) !important;
+  text-align: center !important;
+}
+
+:root:not([data-theme="light"]) [data-sileo-title].sileo-qr-temporary-title {
+  color: var(--color-accent) !important;
 }
 
 @keyframes gymu-streak-timeline-fill {
