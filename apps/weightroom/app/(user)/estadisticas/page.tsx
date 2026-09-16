@@ -7,6 +7,8 @@ import { useQuery } from "@tanstack/react-query";
 import { CREATE_SUPABASE_BROWSER_CLIENT } from "@gusm/database/client";
 import clsx from "clsx";
 import { UserTopBar } from "@/components/UserTopBar";
+import { AttendanceHeatmap } from "@/components/statistics/AttendanceHeatmap";
+import { WeekdayAttendanceTrend } from "@/components/statistics/WeekdayAttendanceTrend";
 import { getCurrentUser } from "@/lib/current-user";
 import { clearProfileCache } from "@/lib/profile-cache";
 import { APP_STATISTICS_QUERY_KEY, CURRENT_USER_QUERY_KEY } from "@/lib/query-keys";
@@ -14,11 +16,6 @@ import { getAppStatistics, type AppStatistics } from "@/lib/statistics";
 
 const PLURAL_RULES = new Intl.PluralRules("es-CL");
 const MONTH_FORMATTER = new Intl.DateTimeFormat("es-CL", { month: "short" });
-const MONTH_WITH_YEAR_FORMATTER = new Intl.DateTimeFormat("es-CL", {
-  month: "long",
-  year: "numeric",
-});
-const WEEKDAY_LABELS = ["L", "M", "X", "J", "V", "S", "D"];
 
 function getPlural(count: number, singular: string, plural: string) {
   return PLURAL_RULES.select(count) === "one" ? singular : plural;
@@ -26,13 +23,6 @@ function getPlural(count: number, singular: string, plural: string) {
 
 function getMonthLabel(month: string) {
   return MONTH_FORMATTER.format(new Date(`${month}-01T12:00:00.000Z`)).replace(".", "");
-}
-
-function getMonthWithYearLabel(month: string) {
-  return MONTH_WITH_YEAR_FORMATTER.format(new Date(`${month}-01T12:00:00.000Z`)).replace(
-    /^./,
-    (letter) => letter.toUpperCase(),
-  );
 }
 
 function getMetricValueLabel(value: number, singular: string, plural: string) {
@@ -188,140 +178,6 @@ function MonthlyHistogram({
   );
 }
 
-function getMonthHeatmapDays(
-  statistics: AppStatistics,
-  month: string,
-): Array<AppStatistics["daily"][number] | null> {
-  const monthStart = new Date(`${month}-01T12:00:00.000Z`);
-  const firstWeekday = (monthStart.getUTCDay() + 6) % 7;
-  const days = statistics.daily.filter((day) => day.date.startsWith(month));
-  const emptyDays = Array.from({ length: firstWeekday }, () => null);
-
-  return [...emptyDays, ...days];
-}
-
-function getHeatmapCellClass(day: AppStatistics["daily"][number]) {
-  const peak = Math.max(day.absences, day.attendees, day.bookings);
-
-  if (day.absences > 0) {
-    return peak >= 3
-      ? "bg-capacity-segment-red text-white"
-      : "bg-capacity-segment-red/65 text-white";
-  }
-
-  if (day.attendees > 0) {
-    return peak >= 3 ? "bg-accent text-accent-foreground" : "bg-accent/65 text-accent-foreground";
-  }
-
-  if (day.bookings > 0) {
-    return peak >= 3
-      ? "bg-capacity-segment-blue text-white"
-      : "bg-capacity-segment-blue/65 text-white";
-  }
-
-  return "border border-divider bg-input text-dim";
-}
-
-function getHeatmapCellLabel(day: AppStatistics["daily"][number]) {
-  const values = [
-    getMetricValueLabel(day.bookings, "reserva", "reservas"),
-    getMetricValueLabel(day.attendees, "asistencia", "asistencias"),
-    getMetricValueLabel(day.absences, "inasistencia", "inasistencias"),
-  ];
-
-  return `${day.date}: ${values.join(", ")}`;
-}
-
-function ActivityHeatmap({
-  statistics,
-  scrollRef,
-}: {
-  statistics: AppStatistics;
-  scrollRef: RefObject<HTMLDivElement | null>;
-}) {
-  return (
-    <section className="rounded-2xl border border-divider bg-input/30 px-4 py-4">
-      <div>
-        <h2 className="text-base font-semibold text-foreground">Mapa de actividad</h2>
-        <p className="mt-1 text-sm text-muted">
-          Cada celda representa un día. Desliza para revisar meses anteriores.
-        </p>
-      </div>
-
-      <div
-        ref={scrollRef}
-        className="mt-5 snap-x snap-mandatory [scrollbar-width:thin] overflow-x-auto overscroll-x-contain pb-3"
-        role="region"
-        aria-label="Mapa mensual de actividad"
-      >
-        <div className="flex w-max gap-3">
-          {statistics.monthly.map((month) => (
-            <article
-              key={month.month}
-              className="w-[calc(100vw-4rem)] max-w-[28.5rem] shrink-0 snap-end"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <h3 className="text-sm font-semibold text-foreground">
-                  {getMonthWithYearLabel(month.month)}
-                </h3>
-                <span className="text-xs text-muted">día a día</span>
-              </div>
-
-              <div className="mt-3 grid grid-cols-7 gap-1.5" aria-hidden="true">
-                {WEEKDAY_LABELS.map((weekday) => (
-                  <span key={weekday} className="text-center text-xs text-muted">
-                    {weekday}
-                  </span>
-                ))}
-              </div>
-              <div className="mt-1.5 grid grid-cols-7 gap-1.5">
-                {getMonthHeatmapDays(statistics, month.month).map((day, index) =>
-                  day ? (
-                    <span
-                      key={day.date}
-                      aria-label={getHeatmapCellLabel(day)}
-                      className={clsx(
-                        "flex aspect-square min-h-10 items-center justify-center rounded-md text-xs font-medium tabular-nums",
-                        getHeatmapCellClass(day),
-                      )}
-                    >
-                      {Number(day.date.slice(-2))}
-                    </span>
-                  ) : (
-                    <span
-                      key={`empty-${month.month}-${index}`}
-                      className="aspect-square"
-                      aria-hidden="true"
-                    />
-                  ),
-                )}
-              </div>
-            </article>
-          ))}
-        </div>
-      </div>
-
-      <div
-        aria-label="Leyenda del mapa"
-        className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted"
-      >
-        <span className="flex items-center gap-1.5">
-          <span className="size-2 rounded-sm bg-accent" aria-hidden="true" />
-          Asistencia
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="size-2 rounded-sm bg-capacity-segment-blue" aria-hidden="true" />
-          Reserva
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="size-2 rounded-sm bg-capacity-segment-red" aria-hidden="true" />
-          Inasistencia
-        </span>
-      </div>
-    </section>
-  );
-}
-
 function StatisticsSkeleton() {
   return (
     <div className="flex flex-col gap-4" aria-label="Cargando estadísticas" aria-busy="true">
@@ -345,7 +201,6 @@ function StatisticsSkeleton() {
 export default function StatisticsPage() {
   const router = useRouter();
   const histogramScrollRef = useRef<HTMLDivElement>(null);
-  const heatmapScrollRef = useRef<HTMLDivElement>(null);
   const hasPositionedCharts = useRef(false);
   const currentUserQuery = useQuery({
     queryKey: CURRENT_USER_QUERY_KEY,
@@ -361,9 +216,8 @@ export default function StatisticsPage() {
   useLayoutEffect(() => {
     if (!statisticsQuery.data || hasPositionedCharts.current) return;
 
-    for (const element of [histogramScrollRef.current, heatmapScrollRef.current]) {
-      if (element) element.scrollLeft = element.scrollWidth;
-    }
+    const histogram = histogramScrollRef.current;
+    if (histogram) histogram.scrollLeft = histogram.scrollWidth;
 
     hasPositionedCharts.current = true;
   }, [statisticsQuery.data]);
@@ -426,7 +280,11 @@ export default function StatisticsPage() {
                   statistics={statisticsQuery.data}
                   scrollRef={histogramScrollRef}
                 />
-                <ActivityHeatmap statistics={statisticsQuery.data} scrollRef={heatmapScrollRef} />
+                <AttendanceHeatmap attendance={statisticsQuery.data.daily} />
+                <WeekdayAttendanceTrend
+                  historyStartDate={statisticsQuery.data.historyStartDate}
+                  weekdays={statisticsQuery.data.weekdayAttendance}
+                />
                 <p className="px-1 text-xs leading-5 text-muted">
                   Los datos son agregados y se actualizan al volver a esta vista. No se muestran
                   identidades ni información personal.

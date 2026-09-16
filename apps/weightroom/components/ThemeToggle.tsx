@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useLayoutEffect, useState } from "react";
 import { Moon, Sun } from "lucide-react";
 import { clsx } from "clsx";
 import {
@@ -24,7 +24,7 @@ export function ThemeToggle({
   const [theme, setTheme] = useState<ThemePreference>("dark");
   const [isUpdating, setIsUpdating] = useState(false);
 
-  useEffect(function synchronizeTheme() {
+  useLayoutEffect(function synchronizeTheme() {
     setTheme(getDocumentThemePreference());
   }, []);
 

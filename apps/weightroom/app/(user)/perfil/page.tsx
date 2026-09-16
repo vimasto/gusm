@@ -13,36 +13,42 @@ import { getSantiagoToday } from "@/components/UserCalendarBanner";
 import { clearQueryCache } from "@/lib/query-client";
 import { CURRENT_USER_QUERY_KEY, PROFILE_QUERY_KEY, profileMonthQueryKey } from "@/lib/query-keys";
 import type { CurrentUser } from "@/lib/current-user";
-import { applyThemePreference, type ThemePreference } from "@/lib/theme";
+import {
+  applyThemePreference,
+  getDocumentThemePreference,
+  type ThemePreference,
+} from "@/lib/theme";
 
-const PROFILE_RESPONSE_SCHEMA = z.object({
-  profile: z.object({
-    userName: z.string().min(1),
-    role: z.enum(["student", "u_staff", "gym_staff", "admin"]),
-    institutionalUsername: z.string().min(1).nullable(),
-    dateOfBirth: z
-      .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/)
-      .nullable(),
-    reportedSex: z.enum(["masculino", "femenino", "otro", "prefiero_no_decir"]).nullable(),
-    heightCm: z.number().int().nullable(),
-    weightKg: z.number().nullable(),
-    streakWeeks: z.number().int().nonnegative(),
-    themePreference: z.enum(["dark", "light"]),
-  }),
-  attendance: z
-    .array(
-      z.object({
-        bookingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-        status: z.enum(["present", "absent"]),
-      }),
-    )
-    .optional(),
+const PROFILE_SCHEMA = z.object({
+  userName: z.string().min(1),
+  role: z.enum(["student", "u_staff", "gym_staff", "admin"]),
+  institutionalUsername: z.string().min(1).nullable(),
+  dateOfBirth: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .nullable(),
+  reportedSex: z.enum(["masculino", "femenino", "otro", "prefiero_no_decir"]).nullable(),
+  heightCm: z.number().int().nullable(),
+  weightKg: z.number().nullable(),
+  streakWeeks: z.number().int().nonnegative(),
+  themePreference: z.enum(["dark", "light"]),
 });
 
-type Profile = z.infer<typeof PROFILE_RESPONSE_SCHEMA>["profile"];
-type ProfileResponse = z.infer<typeof PROFILE_RESPONSE_SCHEMA>;
-type ProfileMonthResponse = ProfileResponse & { monthQuery: string };
+const PROFILE_OVERVIEW_RESPONSE_SCHEMA = z.object({ profile: PROFILE_SCHEMA });
+const PROFILE_ATTENDANCE_RESPONSE_SCHEMA = z.object({
+  attendance: z.array(
+    z.object({
+      bookingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      status: z.enum(["present", "absent"]),
+    }),
+  ),
+});
+
+type Profile = z.infer<typeof PROFILE_SCHEMA>;
+type ProfileOverviewResponse = z.infer<typeof PROFILE_OVERVIEW_RESPONSE_SCHEMA>;
+type ProfileMonthResponse = z.infer<typeof PROFILE_ATTENDANCE_RESPONSE_SCHEMA> & {
+  monthQuery: string;
+};
 type ProfileFormValues = {
   dateOfBirth: string;
   reportedSex: "" | "masculino" | "femenino" | "otro" | "prefiero_no_decir";
@@ -160,8 +166,12 @@ function normalizeWeightInput(value: string) {
   return String(Math.round(normalizedWeight * 100) / 100);
 }
 
-async function getProfile(monthQuery: string): Promise<ProfileMonthResponse> {
-  const profileParameters = new URLSearchParams({ month: monthQuery, includeAttendance: "true" });
+async function getProfileOverview(monthQuery: string): Promise<ProfileOverviewResponse> {
+  const profileParameters = new URLSearchParams({
+    includeAttendance: "false",
+    includeOverview: "true",
+    month: monthQuery,
+  });
   const response = await fetch(`/api/profile?${profileParameters.toString()}`, {
     cache: "no-store",
   });
@@ -169,11 +179,33 @@ async function getProfile(monthQuery: string): Promise<ProfileMonthResponse> {
   if (!response.ok) throw new Error("Profile request was rejected.");
 
   const payload: unknown = await response.json();
-  const profileResponse = PROFILE_RESPONSE_SCHEMA.safeParse(payload);
+  const profileResponse = PROFILE_OVERVIEW_RESPONSE_SCHEMA.safeParse(payload);
   if (!profileResponse.success) throw new Error("Profile response is invalid.");
 
-  applyThemePreference(profileResponse.data.profile.themePreference);
-  return { ...profileResponse.data, monthQuery };
+  if (profileResponse.data.profile.themePreference !== getDocumentThemePreference()) {
+    applyThemePreference(profileResponse.data.profile.themePreference);
+  }
+
+  return profileResponse.data;
+}
+
+async function getProfileAttendance(monthQuery: string): Promise<ProfileMonthResponse> {
+  const profileParameters = new URLSearchParams({
+    includeAttendance: "true",
+    includeOverview: "false",
+    month: monthQuery,
+  });
+  const response = await fetch(`/api/profile?${profileParameters.toString()}`, {
+    cache: "no-store",
+  });
+
+  if (!response.ok) throw new Error("Profile attendance request was rejected.");
+
+  const payload: unknown = await response.json();
+  const attendanceResponse = PROFILE_ATTENDANCE_RESPONSE_SCHEMA.safeParse(payload);
+  if (!attendanceResponse.success) throw new Error("Profile attendance response is invalid.");
+
+  return { ...attendanceResponse.data, monthQuery };
 }
 
 async function saveProfileData(profileData: ProfileMutationPayload) {
@@ -204,15 +236,20 @@ export default function ProfilePage() {
 
   const monthQuery = getMonthQuery(visibleMonth);
   const profileQuery = useQuery({
+    queryKey: PROFILE_QUERY_KEY,
+    queryFn: () => getProfileOverview(monthQuery),
+    staleTime: 5 * 60_000,
+  });
+  const attendanceQuery = useQuery({
     queryKey: profileMonthQueryKey(monthQuery),
-    queryFn: () => getProfile(monthQuery),
+    queryFn: () => getProfileAttendance(monthQuery),
     placeholderData: keepPreviousData,
     staleTime: 5 * 60_000,
   });
   const profile = profileQuery.data?.profile ?? null;
   const attendanceForVisibleMonth: ProfileAttendanceEntry[] =
-    profileQuery.data?.monthQuery === monthQuery ? (profileQuery.data.attendance ?? []) : [];
-  const isLoading = profileQuery.isLoading;
+    attendanceQuery.data?.monthQuery === monthQuery ? attendanceQuery.data.attendance : [];
+  const isAttendanceLoading = attendanceQuery.isLoading;
   const loadError = profileQuery.isError;
   const saveProfileMutation = useMutation({
     mutationFn: saveProfileData,
@@ -296,7 +333,7 @@ export default function ProfilePage() {
         throw new Error("Theme preference update was rejected.");
       }
 
-      queryClient.setQueriesData<ProfileMonthResponse>(
+      queryClient.setQueriesData<ProfileOverviewResponse>(
         { queryKey: PROFILE_QUERY_KEY },
         (currentProfile) =>
           currentProfile
@@ -343,7 +380,7 @@ export default function ProfilePage() {
             onGoRoutines={() => router.push("/rutinas")}
             onGoSettings={() => router.push("/configuracion")}
             onSignOut={signOut}
-            onThemePreferenceChange={profile ? updateThemePreference : undefined}
+            onThemePreferenceChange={updateThemePreference}
           />
         </header>
 
@@ -363,7 +400,7 @@ export default function ProfilePage() {
             <>
               <ProfileCalendar
                 attendance={attendanceForVisibleMonth}
-                isLoading={isLoading}
+                isLoading={isAttendanceLoading}
                 month={visibleMonth}
                 onPreviousMonth={goToPreviousMonth}
                 onNextMonth={goToNextMonth}
@@ -372,7 +409,7 @@ export default function ProfilePage() {
 
               <StreakMilestoneProgress streakWeeks={profile?.streakWeeks ?? cachedStreakWeeks} />
 
-              {loadError && (
+              {attendanceQuery.isError && (
                 <p role="alert" className="text-sm text-rose-400">
                   No fue posible actualizar este mes. Se muestra la información disponible.
                 </p>

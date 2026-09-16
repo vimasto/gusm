@@ -7,6 +7,7 @@ export const runtime = "nodejs";
 
 const PROFILE_MONTH_SCHEMA = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
 const INCLUDE_ATTENDANCE_SCHEMA = z.enum(["true", "false"]);
+const INCLUDE_OVERVIEW_SCHEMA = z.enum(["true", "false"]);
 const DATE_OF_BIRTH_SCHEMA = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -115,9 +116,20 @@ export async function GET(request: NextRequest) {
   const includeAttendance = INCLUDE_ATTENDANCE_SCHEMA.safeParse(
     request.nextUrl.searchParams.get("includeAttendance") ?? "true",
   );
+  const includeOverview = INCLUDE_OVERVIEW_SCHEMA.safeParse(
+    request.nextUrl.searchParams.get("includeOverview") ?? "true",
+  );
   const response = new NextResponse();
 
-  if (!month.success || !includeAttendance.success) {
+  if (
+    !month.success ||
+    !includeAttendance.success ||
+    !includeOverview.success ||
+    (includeAttendance.success &&
+      includeOverview.success &&
+      includeAttendance.data === "false" &&
+      includeOverview.data === "false")
+  ) {
     return createErrorResponse(response, 400, "invalid_request");
   }
 
@@ -129,10 +141,12 @@ export async function GET(request: NextRequest) {
   const serviceRoleClient = CREATE_SUPABASE_SERVICE_ROLE_CLIENT();
   const monthStart = `${month.data}-01`;
   const [overviewResult, attendanceResult] = await Promise.all([
-    serviceRoleClient.rpc("get_profile_overview", {
-      p_actor_user_id: userId,
-      p_target_user_id: userId,
-    }),
+    includeOverview.data === "true"
+      ? serviceRoleClient.rpc("get_profile_overview", {
+          p_actor_user_id: userId,
+          p_target_user_id: userId,
+        })
+      : Promise.resolve(null),
     includeAttendance.data === "true"
       ? serviceRoleClient.rpc("get_profile_monthly_attendance", {
           p_actor_user_id: userId,
@@ -142,33 +156,39 @@ export async function GET(request: NextRequest) {
       : Promise.resolve(null),
   ]);
 
-  if (overviewResult.error || attendanceResult?.error) {
+  if (overviewResult?.error || attendanceResult?.error) {
     console.error("[PROFILE] could not read the current profile data.");
     return createErrorResponse(response, 403, "profile_load_failed");
   }
 
-  const overview = PROFILE_OVERVIEW_SCHEMA.safeParse(overviewResult.data?.at(0));
+  const overview = overviewResult
+    ? PROFILE_OVERVIEW_SCHEMA.safeParse(overviewResult.data?.at(0))
+    : null;
   const attendance = attendanceResult
     ? z.array(MONTHLY_ATTENDANCE_SCHEMA).safeParse(attendanceResult.data)
     : null;
 
-  if (!overview.success || (attendance !== null && !attendance.success)) {
+  if ((overview !== null && !overview.success) || (attendance !== null && !attendance.success)) {
     console.error("[PROFILE] profile RPC returned an invalid response.");
     return createErrorResponse(response, 503, "profile_load_failed");
   }
 
   return createResponse(response, 200, {
-    profile: {
-      userName: overview.data.user_name,
-      role: overview.data.role,
-      institutionalUsername: overview.data.institutional_username,
-      dateOfBirth: overview.data.date_of_birth,
-      reportedSex: overview.data.reported_sex,
-      heightCm: overview.data.height_cm,
-      weightKg: overview.data.weight_kg,
-      streakWeeks: overview.data.streak_weeks,
-      themePreference: overview.data.theme_preference,
-    },
+    ...(overview?.success
+      ? {
+          profile: {
+            userName: overview.data.user_name,
+            role: overview.data.role,
+            institutionalUsername: overview.data.institutional_username,
+            dateOfBirth: overview.data.date_of_birth,
+            reportedSex: overview.data.reported_sex,
+            heightCm: overview.data.height_cm,
+            weightKg: overview.data.weight_kg,
+            streakWeeks: overview.data.streak_weeks,
+            themePreference: overview.data.theme_preference,
+          },
+        }
+      : {}),
     ...(attendance?.success
       ? {
           attendance: attendance.data.map((entry) => ({
