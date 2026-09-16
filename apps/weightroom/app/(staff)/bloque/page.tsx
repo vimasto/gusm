@@ -78,15 +78,6 @@ function getParticipantStatusLabel(participant: BlockParticipant): string {
   return "Reserva confirmada";
 }
 
-function getParticipantStatusClass(participant: BlockParticipant): string {
-  if (participant.status === "requested")
-    return "border-amber-500/35 bg-amber-500/10 text-amber-400";
-  if (participant.status === "present")
-    return "border-emerald-500/30 bg-emerald-500/10 text-emerald-400";
-  if (participant.isLateQrAuthorized) return "border-accent/35 bg-accent/10 text-accent";
-  return "border-divider bg-ghost/50 text-muted";
-}
-
 function getParticipantStatusTextClass(participant: BlockParticipant): string {
   if (participant.status === "requested") return "text-amber-400";
   if (participant.status === "present") return "text-emerald-400";
@@ -94,12 +85,11 @@ function getParticipantStatusTextClass(participant: BlockParticipant): string {
   return "text-muted";
 }
 
-function getInitials(name: string): string {
-  const names = name.split(" ");
-  const firstInitial = names[0]?.[0] ?? "";
-  const lastInitial = names.at(-1)?.[0] ?? "";
-  return `${firstInitial}${lastInitial}`.toUpperCase();
+function getCountLabel(count: number, singular: string, plural: string): string {
+  return `${count} ${count === 1 ? singular : plural}`;
 }
+
+const PROFILE_SECTION_CLASS = "rounded-2xl border border-accent/15 bg-input/30 px-4 py-4";
 
 export default function CurrentBlockPage() {
   const router = useRouter();
@@ -109,8 +99,9 @@ export default function CurrentBlockPage() {
     queryFn: getCurrentUser,
   });
   const [participants, setParticipants] = useState(INITIAL_PARTICIPANTS);
-  const [standardCount, setStandardCount] = useState(14);
+  const [confirmedCount, setConfirmedCount] = useState(14);
   const [overcapacityCount, setOvercapacityCount] = useState(0);
+  const [authorizationCount, setAuthorizationCount] = useState(0);
   const [openParticipantId, setOpenParticipantId] = useState<string | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -119,8 +110,11 @@ export default function CurrentBlockPage() {
   const currentUser = currentUserQuery.data;
   const normalizedQuery = query.trim().toLocaleLowerCase("es-CL");
   const searchResults = MOCK_SEARCH_RESULTS.filter((result) => {
-    if (!normalizedQuery) return true;
-    return result.name.toLocaleLowerCase("es-CL").includes(normalizedQuery);
+    const searchableValue = `${result.name} ${result.username}`.toLocaleLowerCase("es-CL");
+    const matchesQuery = !normalizedQuery || searchableValue.includes(normalizedQuery);
+    const isAlreadyListed = participants.some((participant) => participant.id === result.id);
+
+    return matchesQuery && !isAlreadyListed;
   });
 
   function dismissFeedback() {
@@ -129,7 +123,7 @@ export default function CurrentBlockPage() {
 
   function handleParticipantAction(participant: BlockParticipant) {
     if (participant.status === "requested") {
-      const isStandardAdmission = standardCount < STANDARD_CAPACITY;
+      const isStandardAdmission = confirmedCount < STANDARD_CAPACITY;
       const admissionSource: AdmissionSource = isStandardAdmission
         ? "staff_exception"
         : "staff_overcapacity";
@@ -154,7 +148,8 @@ export default function CurrentBlockPage() {
         }),
       );
       if (isStandardAdmission) {
-        setStandardCount((currentCount) => currentCount + 1);
+        setConfirmedCount((currentCount) => currentCount + 1);
+        setAuthorizationCount((currentCount) => currentCount + 1);
       } else {
         setOvercapacityCount((currentCount) => currentCount + 1);
       }
@@ -171,6 +166,7 @@ export default function CurrentBlockPage() {
             : currentParticipant,
         ),
       );
+      setAuthorizationCount((currentCount) => currentCount + 1);
       setFeedback({
         description:
           "La reserva conserva su procedencia y su cupo. Solo se habilitó el QR por cinco minutos.",
@@ -183,13 +179,7 @@ export default function CurrentBlockPage() {
 
   function addSearchResult(result: BlockParticipant) {
     const alreadyListed = participants.some((participant) => participant.id === result.id);
-    if (alreadyListed) {
-      setFeedback({
-        description: "Esta persona ya está incluida en la lista del bloque actual.",
-        title: "Persona ya añadida",
-      });
-      return;
-    }
+    if (alreadyListed) return;
 
     setParticipants((currentParticipants) => [...currentParticipants, result]);
     setQuery("");
@@ -218,101 +208,229 @@ export default function CurrentBlockPage() {
             showActiveBookings={false}
             role={currentUser?.role}
             streakWeeks={currentUser?.streakWeeks}
-            onGoProfile={() => router.push("/perfil")}
-            onGoCheckIn={() => router.push("/qr")}
+            onGoBookings={() => router.push("/reserva")}
+            onGoOvercapacity={() => router.push("/bloque")}
+            onGoRoutines={() => router.push("/rutinas")}
             onGoSettings={() => router.push("/configuracion")}
             onSignOut={signOut}
           />
         </header>
 
-        <div className="gusm-page-scroll px-4 pt-5 pb-[calc(5.5rem+env(safe-area-inset-bottom))]">
-          <div className="flex flex-col gap-5">
-            <section className="border-b border-divider pb-4">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h1 className="text-xl font-semibold tracking-[-0.02em] text-foreground">
-                    Control de ingreso
-                  </h1>
-                  <p className="mt-1 text-sm text-muted">Bloque 7 · 17:15 · 18:40</p>
-                </div>
-                <QrCode className="mt-1 size-5 shrink-0 text-accent" aria-hidden="true" />
+        <div className="flex gusm-page-scroll flex-col gap-4 px-4 pt-5 pb-[calc(5.5rem+env(safe-area-inset-bottom))]">
+          <section className={PROFILE_SECTION_CLASS} aria-label="Estado del bloque actual">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-medium tracking-[0.12em] text-dim uppercase">
+                  Bloque actual
+                </p>
+                <h1 className="mt-1 text-lg font-semibold text-foreground">
+                  Bloque 7 · 17:15 · 18:40
+                </h1>
               </div>
-              <p className="mt-3 text-sm leading-5 text-foreground-muted">
-                Autoriza ingresos presenciales y recupera QR tardíos sin perder la trazabilidad.
-              </p>
-            </section>
+              <QrCode className="mt-1 size-5 shrink-0 text-accent" aria-hidden="true" />
+            </div>
 
-            <section aria-label="Capacidad del bloque" className="flex flex-col gap-3">
+            <div className="mt-4 border-t border-accent/15 pt-4">
               <div className="flex items-end justify-between gap-4">
                 <div>
+                  <p className="text-xs font-medium tracking-[0.12em] text-dim uppercase">
+                    Capacidad
+                  </p>
                   <p className="text-base font-semibold text-foreground">
-                    {standardCount}/{STANDARD_CAPACITY} cupos estándar
+                    {confirmedCount}/{STANDARD_CAPACITY} usuarios confirmados
                   </p>
                   <p className="mt-0.5 text-sm text-muted">
-                    {overcapacityCount}/{OVERCAPACITY_LIMIT} sobrecupos autorizados
+                    {getCountLabel(overcapacityCount, "sobrecupo", "sobrecupos")} y{" "}
+                    {getCountLabel(authorizationCount, "autorización", "autorizaciones")}
                   </p>
                 </div>
                 <Users className="size-5 shrink-0 text-accent" aria-hidden="true" />
               </div>
-              <CapacitySlots occupied={standardCount} total={STANDARD_CAPACITY} />
-            </section>
+              <div className="mt-3">
+                <CapacitySlots occupied={confirmedCount} total={STANDARD_CAPACITY} />
+              </div>
+            </div>
+          </section>
 
-            <section className="border-y border-divider py-3">
-              <button
-                type="button"
-                onClick={() => setIsSearchOpen((isOpen) => !isOpen)}
-                aria-expanded={isSearchOpen}
-                className="flex w-full items-center justify-between gap-3 text-left text-base text-foreground transition-colors hover:text-accent focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
-              >
-                <span className="flex items-center gap-2">
-                  <UserPlus className="size-4 text-accent" aria-hidden="true" />
-                  Añadir persona sin reserva
-                </span>
-                {isSearchOpen ? (
-                  <X className="size-4" aria-hidden="true" />
-                ) : (
-                  <Search className="size-4" aria-hidden="true" />
-                )}
-              </button>
+          <section className={PROFILE_SECTION_CLASS} aria-labelledby="block-participants-title">
+            <div className="flex items-end justify-between gap-3 border-b border-accent/15 pb-3">
+              <div>
+                <p className="text-xs font-medium tracking-[0.12em] text-dim uppercase">
+                  Asistencia
+                </p>
+                <h2
+                  id="block-participants-title"
+                  className="mt-1 text-lg font-semibold text-foreground"
+                >
+                  Participantes
+                </h2>
+              </div>
+              <span className="text-sm text-muted tabular-nums">{participants.length}</span>
+            </div>
+            <div className="divide-y divide-accent/15">
+              {participants.map((participant) => {
+                const isActionOpen = openParticipantId === participant.id;
+                const isActionable =
+                  participant.status === "requested" ||
+                  (participant.status === "confirmed" && participant.canReauthorizeLateQr);
+                const isStandardAdmission = confirmedCount < STANDARD_CAPACITY;
+                const actionLabel =
+                  participant.status === "requested"
+                    ? isStandardAdmission
+                      ? "Autorizar ingreso"
+                      : "Autorizar sobrecupo"
+                    : "Habilitar QR 5 min";
 
-              <AnimatePresence initial={false}>
-                {isSearchOpen && (
-                  <motion.div
-                    initial={
-                      shouldReduceMotion
-                        ? false
-                        : { opacity: 0, y: -6, clipPath: "inset(0 0 100% 0)" }
-                    }
-                    animate={{ opacity: 1, y: 0, clipPath: "inset(0 0 0% 0)" }}
-                    exit={
-                      shouldReduceMotion
-                        ? undefined
-                        : { opacity: 0, y: -4, clipPath: "inset(0 0 100% 0)" }
-                    }
+                return (
+                  <motion.article
+                    key={participant.id}
+                    layout
                     transition={
                       shouldReduceMotion
                         ? { duration: 0 }
-                        : { duration: 0.2, ease: [0.16, 1, 0.3, 1] }
+                        : { layout: { duration: 0.22, ease: [0.16, 1, 0.3, 1] } }
                     }
-                    className="mt-3 flex flex-col gap-2"
+                    className="py-3"
                   >
-                    <label className="sr-only" htmlFor="block-user-search">
-                      Buscar por usuario institucional
-                    </label>
-                    <input
-                      id="block-user-search"
-                      value={query}
-                      onChange={(event) => setQuery(event.target.value)}
-                      placeholder="Buscar usuario institucional"
-                      className="gusm-input-primary w-full"
-                    />
-                    <div className="flex flex-col gap-1">
-                      {searchResults.map((result) => (
+                    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-base font-semibold text-foreground">
+                          {participant.name}
+                        </p>
+                        <p className="truncate text-sm text-muted">{participant.username}</p>
+                      </div>
+                      <span
+                        className={clsx(
+                          "whitespace-nowrap text-right text-sm leading-5",
+                          getParticipantStatusTextClass(participant),
+                        )}
+                      >
+                        {getParticipantStatusLabel(participant)}
+                      </span>
+                      {isActionable && (
                         <button
-                          key={result.id}
                           type="button"
-                          onClick={() => addSearchResult(result)}
-                          className="flex min-h-11 items-center justify-between gap-3 rounded-lg px-2 text-left transition-colors hover:bg-input focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
+                          onClick={() =>
+                            setOpenParticipantId((openId) =>
+                              openId === participant.id ? null : participant.id,
+                            )
+                          }
+                          aria-expanded={isActionOpen}
+                          aria-label={`Acciones para ${participant.name}`}
+                          className="col-start-2 row-start-2 flex size-6 items-center justify-center self-center justify-self-end text-accent transition-transform focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none active:scale-95"
+                        >
+                          {isActionOpen ? (
+                            <X className="size-4" aria-hidden="true" />
+                          ) : (
+                            <MoreHorizontal className="size-5" aria-hidden="true" />
+                          )}
+                        </button>
+                      )}
+                    </div>
+                    <AnimatePresence initial={false}>
+                      {isActionOpen && (
+                        <motion.div
+                          initial={
+                            shouldReduceMotion
+                              ? false
+                              : { opacity: 0, y: -5, clipPath: "inset(0 0 100% 0)" }
+                          }
+                          animate={{ opacity: 1, y: 0, clipPath: "inset(0 0 0% 0)" }}
+                          exit={
+                            shouldReduceMotion
+                              ? undefined
+                              : { opacity: 0, y: -3, clipPath: "inset(0 0 100% 0)" }
+                          }
+                          transition={
+                            shouldReduceMotion
+                              ? { duration: 0 }
+                              : { duration: 0.18, ease: [0.16, 1, 0.3, 1] }
+                          }
+                          className="mt-3 flex items-center gap-2 border-t border-accent/15 pt-3"
+                        >
+                          <button
+                            type="button"
+                            onClick={() => handleParticipantAction(participant)}
+                            className="flex w-full gusm-button-primary items-center justify-center gap-2"
+                          >
+                            {participant.status === "confirmed" ? (
+                              <Clock3 className="size-4" aria-hidden="true" />
+                            ) : (
+                              <CheckCircle2 className="size-4" aria-hidden="true" />
+                            )}
+                            {actionLabel}
+                          </button>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </motion.article>
+                );
+              })}
+            </div>
+          </section>
+
+          <section className={PROFILE_SECTION_CLASS} aria-labelledby="block-admission-title">
+            <p className="mb-2 text-xs font-medium tracking-[0.12em] text-dim uppercase">
+              Ingreso presencial
+            </p>
+            <button
+              type="button"
+              onClick={() => setIsSearchOpen((isOpen) => !isOpen)}
+              aria-expanded={isSearchOpen}
+              className="flex w-full items-center justify-between gap-3 text-left text-base font-semibold text-foreground transition-colors hover:text-accent focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
+            >
+              <span id="block-admission-title" className="flex items-center gap-2">
+                <UserPlus className="size-4 text-accent" aria-hidden="true" />
+                Añadir persona sin reserva
+              </span>
+              {isSearchOpen ? (
+                <X className="size-4" aria-hidden="true" />
+              ) : (
+                <Search className="size-4" aria-hidden="true" />
+              )}
+            </button>
+
+            <AnimatePresence initial={false}>
+              {isSearchOpen && (
+                <motion.div
+                  initial={
+                    shouldReduceMotion
+                      ? false
+                      : { opacity: 0, y: -6, clipPath: "inset(0 0 100% 0)" }
+                  }
+                  animate={{ opacity: 1, y: 0, clipPath: "inset(0 0 0% 0)" }}
+                  exit={
+                    shouldReduceMotion
+                      ? undefined
+                      : { opacity: 0, y: -4, clipPath: "inset(0 0 100% 0)" }
+                  }
+                  transition={
+                    shouldReduceMotion
+                      ? { duration: 0 }
+                      : { duration: 0.2, ease: [0.16, 1, 0.3, 1] }
+                  }
+                  className="mt-4 flex flex-col gap-2 border-t border-accent/15 pt-4"
+                >
+                  <label className="sr-only" htmlFor="block-user-search">
+                    Buscar por usuario institucional
+                  </label>
+                  <input
+                    id="block-user-search"
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    placeholder="Buscar usuario institucional"
+                    className="gusm-input-primary w-full"
+                  />
+                  <div className="flex flex-col divide-y divide-accent/15">
+                    {searchResults.length === 0 ? (
+                      <p className="px-1 py-3 text-sm text-dim">
+                        No hay personas disponibles para añadir.
+                      </p>
+                    ) : (
+                      searchResults.map((result) => (
+                        <div
+                          key={result.id}
+                          className="flex min-h-12 items-center justify-between gap-3 px-1"
                         >
                           <span className="min-w-0">
                             <span className="block truncate text-base text-foreground">
@@ -322,168 +440,43 @@ export default function CurrentBlockPage() {
                               {result.username}
                             </span>
                           </span>
-                          <span className="shrink-0 text-sm text-accent">Añadir</span>
-                        </button>
-                      ))}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </section>
-
-            <section aria-labelledby="block-participants-title">
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <h2
-                  id="block-participants-title"
-                  className="text-base font-semibold text-foreground"
-                >
-                  Personas del bloque
-                </h2>
-                <span className="text-sm text-muted tabular-nums">{participants.length}</span>
-              </div>
-              <div className="flex flex-col gap-2">
-                {participants.map((participant) => {
-                  const isActionOpen = openParticipantId === participant.id;
-                  const isActionable =
-                    participant.status === "requested" ||
-                    (participant.status === "confirmed" && participant.canReauthorizeLateQr);
-                  const isStandardAdmission = standardCount < STANDARD_CAPACITY;
-                  const actionLabel =
-                    participant.status === "requested"
-                      ? isStandardAdmission
-                        ? "Autorizar ingreso"
-                        : "Autorizar sobrecupo"
-                      : "Habilitar QR 5 min";
-
-                  return (
-                    <motion.article
-                      key={participant.id}
-                      layout
-                      transition={
-                        shouldReduceMotion
-                          ? { duration: 0 }
-                          : { layout: { duration: 0.22, ease: [0.16, 1, 0.3, 1] } }
-                      }
-                      className="rounded-xl border border-divider bg-input/45 px-3 py-3"
-                    >
-                      <div className="flex min-w-0 items-center gap-3">
-                        <span
-                          className="flex size-9 shrink-0 items-center justify-center rounded-full bg-ghost text-sm font-semibold text-foreground"
-                          aria-hidden="true"
-                        >
-                          {getInitials(participant.name)}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-base font-semibold text-foreground">
-                            {participant.name}
-                          </p>
-                          <p className="truncate text-sm text-muted">{participant.username}</p>
-                        </div>
-                        <span
-                          className={clsx(
-                            "hidden shrink-0 rounded-full border px-2 py-1 text-xs sm:block",
-                            getParticipantStatusClass(participant),
-                          )}
-                        >
-                          {getParticipantStatusLabel(participant)}
-                        </span>
-                        {isActionable && (
                           <button
                             type="button"
-                            onClick={() =>
-                              setOpenParticipantId((openId) =>
-                                openId === participant.id ? null : participant.id,
-                              )
-                            }
-                            aria-expanded={isActionOpen}
-                            aria-label={`Acciones para ${participant.name}`}
-                            className="flex size-9 shrink-0 items-center justify-center text-accent transition-transform focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none active:scale-95"
+                            onClick={() => addSearchResult(result)}
+                            className="flex min-h-10 shrink-0 items-center gap-1.5 rounded-lg px-2 text-base text-accent transition-colors hover:bg-accent/10 focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none active:scale-[0.98]"
                           >
-                            {isActionOpen ? (
-                              <X className="size-4" aria-hidden="true" />
-                            ) : (
-                              <MoreHorizontal className="size-5" aria-hidden="true" />
-                            )}
+                            <UserPlus className="size-4" aria-hidden="true" />
+                            Añadir
                           </button>
-                        )}
-                      </div>
-                      <p
-                        className={clsx(
-                          "mt-2 text-sm sm:hidden",
-                          getParticipantStatusTextClass(participant),
-                        )}
-                      >
-                        {getParticipantStatusLabel(participant)}
-                      </p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </section>
 
-                      <AnimatePresence initial={false}>
-                        {isActionOpen && (
-                          <motion.div
-                            initial={
-                              shouldReduceMotion
-                                ? false
-                                : { opacity: 0, y: -5, clipPath: "inset(0 0 100% 0)" }
-                            }
-                            animate={{ opacity: 1, y: 0, clipPath: "inset(0 0 0% 0)" }}
-                            exit={
-                              shouldReduceMotion
-                                ? undefined
-                                : { opacity: 0, y: -3, clipPath: "inset(0 0 100% 0)" }
-                            }
-                            transition={
-                              shouldReduceMotion
-                                ? { duration: 0 }
-                                : { duration: 0.18, ease: [0.16, 1, 0.3, 1] }
-                            }
-                            className="mt-3 flex items-center gap-2 border-t border-divider pt-3"
-                          >
-                            <button
-                              type="button"
-                              onClick={() => handleParticipantAction(participant)}
-                              className={clsx(
-                                "flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border px-3 text-base transition-colors focus-visible:ring-2 focus-visible:outline-none active:scale-[0.98]",
-                                participant.status === "requested" && !isStandardAdmission
-                                  ? "border-red-500/35 bg-red-500/10 text-red-400 focus-visible:ring-red-400"
-                                  : "border-accent/35 bg-accent/10 text-accent hover:bg-accent/15 focus-visible:ring-accent",
-                              )}
-                            >
-                              {participant.status === "confirmed" ? (
-                                <Clock3 className="size-4" aria-hidden="true" />
-                              ) : (
-                                <CheckCircle2 className="size-4" aria-hidden="true" />
-                              )}
-                              {actionLabel}
-                            </button>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </motion.article>
-                  );
-                })}
-              </div>
-            </section>
-
-            <p className="flex items-start gap-2 pb-2 text-xs leading-5 text-dim">
-              <CircleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-              Vista de maqueta: las autorizaciones no modifican reservas ni asistencias reales.
-            </p>
-          </div>
+          <p className="flex items-start gap-2 px-1 pb-2 text-xs leading-5 text-dim">
+            <CircleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+            Vista de maqueta: las autorizaciones no modifican reservas ni asistencias reales.
+          </p>
         </div>
 
         <AnimatePresence initial={false}>
           {feedback && (
             <motion.div
-              className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] gusm-app-overlay z-40 px-4"
-              initial={shouldReduceMotion ? false : { opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={shouldReduceMotion ? undefined : { opacity: 0, y: 8 }}
+              className="fixed inset-x-0 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-40 flex justify-center px-4"
+              initial={shouldReduceMotion ? false : { filter: "blur(2px)", opacity: 0 }}
+              animate={{ filter: "blur(0px)", opacity: 1 }}
+              exit={shouldReduceMotion ? undefined : { filter: "blur(2px)", opacity: 0 }}
               transition={
-                shouldReduceMotion ? { duration: 0 } : { duration: 0.22, ease: [0.16, 1, 0.3, 1] }
+                shouldReduceMotion ? { duration: 0 } : { duration: 0.16, ease: [0.16, 1, 0.3, 1] }
               }
               role="status"
               aria-live="polite"
             >
-              <div className="flex items-start gap-3 rounded-xl border border-accent/35 bg-surface px-4 py-3 shadow-xl">
+              <div className="flex w-full max-w-[var(--container-app)] items-start gap-3 rounded-xl border border-accent/35 bg-surface px-4 py-3 shadow-xl">
                 <CheckCheck className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden="true" />
                 <div className="min-w-0 flex-1">
                   <p className="text-base font-semibold text-foreground">{feedback.title}</p>
