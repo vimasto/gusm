@@ -47,8 +47,10 @@ export const config = {
   matcher: [
     "/reserva/:path*",
     "/perfil/:path*",
+    "/noticias/:path*",
     "/qr/:path*",
     "/bloque/:path*",
+    "/rutinas/:path*",
     "/configuracion/:path*",
   ],
 };

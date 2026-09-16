@@ -1,17 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import {
   CalendarCheck,
   Dumbbell,
   Flame,
-  LayoutDashboard,
   LogOut,
   Menu,
-  QrCode,
   Settings,
   type LucideIcon,
-  User,
   Users,
 } from "lucide-react";
 import clsx from "clsx";
@@ -30,6 +28,7 @@ type ActivePopover = "bookings" | "menu" | "streak" | null;
 type MenuItemVariant = "default" | "destructive";
 
 type AvatarMenuItem = {
+  href?: string;
   label: string;
   icon: LucideIcon;
   onClick: () => void | Promise<void>;
@@ -43,10 +42,9 @@ type UserTopBarProps = {
   userName?: string;
   role?: AppRole;
   streakWeeks?: number;
-  onGoProfile?: () => void;
-  onGoCheckIn?: () => void;
+  onGoBookings?: () => void;
   onGoOvercapacity?: () => void;
-  onGoInformation?: () => void;
+  onGoRoutines?: () => void;
   onGoSettings?: () => void;
   onSignOut?: () => void | Promise<void>;
   activeBookings?: ActiveBooking[];
@@ -54,6 +52,7 @@ type UserTopBarProps = {
   onCancelBooking?: (bookingKey: string) => void;
   onThemePreferenceChange?: (themePreference: ThemePreference) => Promise<boolean>;
   showUserName?: boolean;
+  showBookingsInMenu?: boolean;
 };
 
 function isAtLeastStaff(role: AppRole): boolean {
@@ -62,6 +61,10 @@ function isAtLeastStaff(role: AppRole): boolean {
 
 function isAdmin(role: AppRole): boolean {
   return role === "admin";
+}
+
+function usesDirectAccountActions(role: AppRole | undefined): boolean {
+  return role === "student" || role === "u_staff";
 }
 
 function getStreakSeenStorageKey(userName: string): string {
@@ -80,10 +83,9 @@ export function UserTopBar({
   userName,
   role,
   streakWeeks,
-  onGoProfile,
-  onGoCheckIn,
+  onGoBookings,
   onGoOvercapacity,
-  onGoInformation,
+  onGoRoutines,
   onGoSettings,
   onSignOut,
   activeBookings = [],
@@ -91,7 +93,9 @@ export function UserTopBar({
   onCancelBooking,
   onThemePreferenceChange,
   showUserName = true,
+  showBookingsInMenu = false,
 }: UserTopBarProps) {
+  const pathname = usePathname();
   const [activePopover, setActivePopover] = useState<ActivePopover>(null);
   const [isSignOutConfirmationOpen, setIsSignOutConfirmationOpen] = useState(false);
   const [isStreakCelebrating, setIsStreakCelebrating] = useState(false);
@@ -172,28 +176,57 @@ export function UserTopBar({
         : "semanas entrenando";
 
   const avatarMenu: AvatarMenuItem[] = [];
-  if (onGoProfile) {
-    avatarMenu.push({ label: "Perfil", icon: User, onClick: onGoProfile });
-  }
-  if (onGoCheckIn) {
-    avatarMenu.push({ label: "Marcar asistencia", icon: QrCode, onClick: onGoCheckIn });
-  }
-  if (role && isAtLeastStaff(role) && onGoOvercapacity) {
-    avatarMenu.push({ label: "Bloque actual", icon: Users, onClick: onGoOvercapacity });
-  }
-  if (role && isAtLeastStaff(role) && onGoInformation) {
-    avatarMenu.push({ label: "Información", icon: LayoutDashboard, onClick: onGoInformation });
-  }
-  if (role && isAdmin(role) && onGoSettings) {
-    avatarMenu.push({ label: "Configuración", icon: Settings, onClick: onGoSettings });
-  }
-  if (onSignOut) {
-    avatarMenu.push({
-      label: "Cerrar sesión",
-      icon: LogOut,
-      onClick: onSignOut,
-      variant: "destructive",
-    });
+  const hasManagementMenu = role !== undefined && isAtLeastStaff(role);
+  const showDirectSignOut = usesDirectAccountActions(role) && onSignOut !== undefined;
+
+  if (hasManagementMenu) {
+    if (showBookingsInMenu) {
+      avatarMenu.push({
+        href: "/reserva",
+        label: "Mis reservas",
+        icon: CalendarCheck,
+        onClick: () => setActivePopover("bookings"),
+      });
+    } else if (onGoBookings) {
+      avatarMenu.push({
+        href: "/reserva",
+        label: "Mis reservas",
+        icon: CalendarCheck,
+        onClick: onGoBookings,
+      });
+    }
+    if (onGoOvercapacity) {
+      avatarMenu.push({
+        href: "/bloque",
+        label: "Bloque actual",
+        icon: Users,
+        onClick: onGoOvercapacity,
+      });
+    }
+    if (onGoRoutines) {
+      avatarMenu.push({
+        href: "/rutinas",
+        label: "Rutinas",
+        icon: Dumbbell,
+        onClick: onGoRoutines,
+      });
+    }
+    if (role && isAdmin(role) && onGoSettings) {
+      avatarMenu.push({
+        href: "/configuracion",
+        label: "Configuración",
+        icon: Settings,
+        onClick: onGoSettings,
+      });
+    }
+    if (onSignOut) {
+      avatarMenu.push({
+        label: "Cerrar sesión",
+        icon: LogOut,
+        onClick: onSignOut,
+        variant: "destructive",
+      });
+    }
   }
 
   const hasMenu = avatarMenu.length > 0;
@@ -225,6 +258,7 @@ export function UserTopBar({
                 {avatarMenu.map((menuItem) => {
                   const Icon = menuItem.icon;
                   const isDestructive = menuItem.variant === "destructive";
+                  const isCurrentRoute = menuItem.href === pathname;
 
                   return (
                     <button
@@ -235,7 +269,9 @@ export function UserTopBar({
                         "flex items-center gap-2 rounded-lg px-3 py-2 text-left text-base transition-colors",
                         isDestructive
                           ? "text-red-500 hover:bg-red-500/10"
-                          : "text-foreground-muted hover:bg-accent/10 hover:text-accent",
+                          : isCurrentRoute
+                            ? "bg-accent/12 text-accent"
+                            : "text-foreground-muted hover:bg-accent/10 hover:text-accent",
                       )}
                     >
                       <Icon className="size-4" aria-hidden="true" />
@@ -335,19 +371,27 @@ export function UserTopBar({
         {onThemePreferenceChange && (
           <ThemeToggle onThemePreferenceChange={onThemePreferenceChange} />
         )}
+
+        {showDirectSignOut && (
+          <button
+            type="button"
+            onClick={() => setIsSignOutConfirmationOpen(true)}
+            aria-label="Cerrar sesión"
+            className="flex size-10 shrink-0 items-center justify-center rounded-lg text-dim transition-colors hover:bg-red-500/10 hover:text-red-500 focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:outline-none active:scale-95"
+          >
+            <LogOut className="size-4" aria-hidden="true" />
+          </button>
+        )}
       </div>
 
-      {showActiveBookings &&
-        activePopover === "bookings" &&
-        onConfirmBooking &&
-        onCancelBooking && (
-          <ActiveBookingsPanel
-            bookings={activeBookings}
-            onClose={closePopover}
-            onConfirm={onConfirmBooking}
-            onCancel={onCancelBooking}
-          />
-        )}
+      {activePopover === "bookings" && onConfirmBooking && onCancelBooking && (
+        <ActiveBookingsPanel
+          bookings={activeBookings}
+          onClose={closePopover}
+          onConfirm={onConfirmBooking}
+          onCancel={onCancelBooking}
+        />
+      )}
 
       {isSignOutConfirmationOpen && (
         <SignOutConfirmationDialog

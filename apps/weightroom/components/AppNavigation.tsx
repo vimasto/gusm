@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { CalendarDays, QrCode, Settings, User, Users, type LucideIcon } from "lucide-react";
+import { CalendarDays, Newspaper, QrCode, User, type LucideIcon } from "lucide-react";
 import clsx from "clsx";
 import { getCurrentUser } from "@/lib/current-user";
 import { CURRENT_USER_QUERY_KEY } from "@/lib/query-keys";
@@ -20,21 +20,13 @@ type NavigationItem = {
 
 const NAVIGATION_EXCLUDED_PATHS = new Set(["/", "/login", "/terminos", "/qr/escanear"]);
 
-function isStaff(role: "student" | "u_staff" | "gym_staff" | "admin"): boolean {
-  return role === "gym_staff" || role === "admin";
-}
-
-function getNavigationItems(role: "student" | "u_staff" | "gym_staff" | "admin"): NavigationItem[] {
-  const items: NavigationItem[] = [
+function getNavigationItems(): NavigationItem[] {
+  return [
     { href: "/reserva", icon: CalendarDays, label: "Reserva" },
-    { href: "/qr", icon: QrCode, label: "QR" },
     { href: "/perfil", icon: User, label: "Perfil" },
+    { href: "/qr", icon: QrCode, label: "QR" },
+    { href: "/noticias", icon: Newspaper, label: "Noticias" },
   ];
-
-  if (isStaff(role)) items.push({ href: "/bloque", icon: Users, label: "Bloque" });
-  if (role === "admin") items.push({ href: "/configuracion", icon: Settings, label: "Ajustes" });
-
-  return items;
 }
 
 function isNavigationVisible(pathname: string): boolean {
@@ -75,7 +67,7 @@ export function AppNavigation({ children }: AppNavigationProps) {
     refetchOnMount: "always",
   });
   const currentUser = currentUserQuery.data;
-  const items = currentUser ? getNavigationItems(currentUser.role) : [];
+  const items = currentUser ? getNavigationItems() : [];
   const hasNavigation = navigationVisible && currentUser !== undefined;
 
   return (
@@ -83,7 +75,7 @@ export function AppNavigation({ children }: AppNavigationProps) {
       {hasNavigation && (
         <nav
           aria-label="Navegación principal"
-          className="fixed bottom-[max(env(safe-area-inset-bottom),0.75rem)] left-1/2 z-30 flex min-h-17 w-fit max-w-[calc(100%-1rem)] -translate-x-1/2 items-center justify-center gap-1 rounded-s-full rounded-e-full border border-divider/65 bg-transparent px-3 py-2 shadow-[0_6px_20px_rgb(0_0_0_/_0.12)] backdrop-blur-[2px] backdrop-saturate-125"
+          className="fixed bottom-[max(env(safe-area-inset-bottom),0.75rem)] left-1/2 z-30 flex min-h-17 w-fit max-w-[calc(100%-1rem)] -translate-x-1/2 items-center justify-center gap-3 rounded-s-full rounded-e-full border border-divider/65 bg-transparent px-4 py-2 shadow-[0_6px_20px_rgb(0_0_0_/_0.12)] backdrop-blur-[2px] backdrop-saturate-125"
         >
           <NavigationLinks items={items} pathname={pathname} />
         </nav>
