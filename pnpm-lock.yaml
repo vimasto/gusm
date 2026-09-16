@@ -23,6 +23,9 @@ importers:
 
   apps/weightroom:
     dependencies:
+      '@bryllim/workout-guide':
+        specifier: ^1.0.0
+        version: 1.0.0
       '@gusm/database':
         specifier: workspace:*
         version: link:../../packages/database
@@ -185,6 +188,10 @@ packages:
   '@alloc/quick-lru@5.2.0':
     resolution: {integrity: sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw==}
     engines: {node: '>=10'}
+
+  '@bryllim/workout-guide@1.0.0':
+    resolution: {integrity: sha512-N593OR3vyT/C1sDpdM/UoF5gHUwEAziExxo9Y0awMLyPpCvx8DnIAlOFJ9kHk/TZwhbWN6WoCEASAEX5ZbiIGQ==}
+    engines: {node: '>=18'}
 
   '@emnapi/runtime@1.9.2':
     resolution: {integrity: sha512-3U4+MIWHImeyu1wnmVygh5WlgfYDtyf0k8AbLhMFxOipihf6nrWC4syIm/SwEeec0mNSafiiNnMJwbza/Is6Lw==}
@@ -1366,6 +1373,8 @@ packages:
 snapshots:
 
   '@alloc/quick-lru@5.2.0': {}
+
+  '@bryllim/workout-guide@1.0.0': {}
 
   '@emnapi/runtime@1.9.2':
     dependencies:
