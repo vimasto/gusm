@@ -146,7 +146,6 @@ export function BlockCard({
       isSelected={isSelected}
       onSelect={canSelect ? handleSelect : undefined}
       title={block.timeRange}
-      titleDetail={block.userStatus === "confirming" ? "Ventana activa" : undefined}
       totalSpots={totalSpots}
       taken={block.taken}
       actions={

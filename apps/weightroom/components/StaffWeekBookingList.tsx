@@ -111,11 +111,6 @@ export function StaffWeekBookingList({
             isSelected={isSelected}
             onSelect={canSelect || isClosed ? handleSelect : undefined}
             title={getDateLabel(day.date)}
-            titleDetail={
-              actionState === "reserved" && day.isConfirmationWindowActive
-                ? "Ventana activa"
-                : undefined
-            }
             totalSpots={totalSpots}
             taken={day.block.taken}
             actions={

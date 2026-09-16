@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion, useDragControls, useReducedMotion } from "motion/react";
+import { sileo } from "sileo";
 import * as z from "zod/v4";
 import { CREATE_SUPABASE_BROWSER_CLIENT } from "@gusm/database/client";
 import {
@@ -276,7 +277,6 @@ export default function BookingPage() {
   const [weekOffset, setWeekOffset] = useState(defaultCalendarSelection.weekOffset);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [reservationSuccessTitle, setReservationSuccessTitle] = useState<string | null>(null);
-  const [reservationError, setReservationError] = useState<string | null>(null);
   const [isBookingReplacementRequested, setIsBookingReplacementRequested] = useState(false);
   const [isBookingReplacementPending, setIsBookingReplacementPending] = useState(false);
   const [isAdmissionRequested, setIsAdmissionRequested] = useState(false);
@@ -613,7 +613,6 @@ export default function BookingPage() {
   }
 
   async function createBooking(bookingDate: Date, timeBlockId: number) {
-    setReservationError(null);
     const supabase = CREATE_SUPABASE_BROWSER_CLIENT();
     const { data, error } = await supabase.rpc("create_booking", {
       p_booking_date: getBookingDateKey(bookingDate),
@@ -621,9 +620,11 @@ export default function BookingPage() {
     });
 
     if (error) {
-      setReservationError(
-        "No fue posible crear la reserva. Actualiza la disponibilidad e inténtalo otra vez.",
-      );
+      sileo.error({
+        description: "Actualiza la disponibilidad e inténtalo otra vez.",
+        position: "top-center",
+        title: "No fue posible crear la reserva",
+      });
       return;
     }
 
@@ -637,7 +638,6 @@ export default function BookingPage() {
     bookingDate: Date,
     timeBlockId: number,
   ) {
-    setReservationError(null);
     setIsBookingReplacementPending(true);
     const supabase = CREATE_SUPABASE_BROWSER_CLIENT();
     const { data, error } = await supabase.rpc("replace_daily_booking", {
@@ -649,9 +649,11 @@ export default function BookingPage() {
     setIsBookingReplacementPending(false);
 
     if (error) {
-      setReservationError(
-        "No fue posible cambiar la reserva. Actualiza la disponibilidad e inténtalo otra vez.",
-      );
+      sileo.error({
+        description: "Actualiza la disponibilidad e inténtalo otra vez.",
+        position: "top-center",
+        title: "No fue posible cambiar la reserva",
+      });
       return;
     }
 
@@ -664,14 +666,17 @@ export default function BookingPage() {
   }
 
   async function cancelBooking(bookingEntry: BookingEntry) {
-    setReservationError(null);
     const supabase = CREATE_SUPABASE_BROWSER_CLIENT();
     const { error } = await supabase.rpc("cancel_booking", {
       p_booking_id: bookingEntry.bookingId,
     });
 
     if (error) {
-      setReservationError("No fue posible cancelar la reserva. Su estado pudo haber cambiado.");
+      sileo.error({
+        description: "Su estado pudo haber cambiado.",
+        position: "top-center",
+        title: "No fue posible cancelar la reserva",
+      });
       return;
     }
 
@@ -679,16 +684,17 @@ export default function BookingPage() {
   }
 
   async function confirmBooking(bookingEntry: BookingEntry) {
-    setReservationError(null);
     const supabase = CREATE_SUPABASE_BROWSER_CLIENT();
     const { error } = await supabase.rpc("confirm_booking", {
       p_booking_id: bookingEntry.bookingId,
     });
 
     if (error) {
-      setReservationError(
-        "No fue posible confirmar la asistencia. Revisa que la ventana siga abierta.",
-      );
+      sileo.error({
+        description: "Revisa que la ventana siga abierta.",
+        position: "top-center",
+        title: "No fue posible confirmar la asistencia",
+      });
       return;
     }
 
@@ -1140,25 +1146,6 @@ export default function BookingPage() {
           title={reservationSuccessTitle ?? "Reserva creada"}
           onDismiss={handleDismissReservationSuccess}
         />
-
-        {reservationError && (
-          <div
-            role="alert"
-            className="fixed inset-x-4 top-4 z-40 mx-auto max-w-md rounded-xl border border-red-500/35 bg-surface px-4 py-3 text-sm text-foreground shadow-lg"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <p>{reservationError}</p>
-              <button
-                type="button"
-                onClick={() => setReservationError(null)}
-                className="shrink-0 text-base text-red-400 active:scale-[0.98]"
-              >
-                Cerrar
-              </button>
-            </div>
-          </div>
-        )}
-
         {closureNotice && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay px-5">
             <section
