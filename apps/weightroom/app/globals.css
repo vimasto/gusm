@@ -62,6 +62,22 @@
   --color-overlay: rgb(28 27 24 / 52%);
 }
 
+:root[data-theme="light"] .routine-exercise-guide-frame {
+  background-color: #000;
+}
+
+:root[data-theme="light"] .routine-exercise-guide-image {
+  filter: grayscale(1) contrast(1000%);
+}
+
+:root[data-theme-switching],
+:root[data-theme-switching] *,
+:root[data-theme-switching] *::before,
+:root[data-theme-switching] *::after {
+  transition-duration: 0s !important;
+  transition-delay: 0s !important;
+}
+
 @keyframes gymu-streak-timeline-fill {
   from {
     transform: scaleX(0);

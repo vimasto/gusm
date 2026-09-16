@@ -31,18 +31,31 @@ export function ThemeToggle({
   async function toggleTheme() {
     if (disabled || isUpdating) return;
 
+    const previousTheme = theme;
     const nextTheme: ThemePreference = theme === "dark" ? "light" : "dark";
-
-    if (onThemePreferenceChange) {
-      setIsUpdating(true);
-      const didPersist = await onThemePreferenceChange(nextTheme);
-      setIsUpdating(false);
-      if (!didPersist) return;
-    }
 
     applyThemePreference(nextTheme);
     setTheme(nextTheme);
     onThemePreferenceSelect?.(nextTheme);
+
+    if (onThemePreferenceChange) {
+      setIsUpdating(true);
+      let didPersist = false;
+
+      try {
+        didPersist = await onThemePreferenceChange(nextTheme);
+      } catch {
+        didPersist = false;
+      } finally {
+        setIsUpdating(false);
+      }
+
+      if (!didPersist) {
+        applyThemePreference(previousTheme);
+        setTheme(previousTheme);
+        onThemePreferenceSelect?.(previousTheme);
+      }
+    }
   }
 
   const isDarkTheme = theme === "dark";
