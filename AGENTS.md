@@ -8,6 +8,7 @@ Este archivo es la referencia persistente del repositorio. Las instrucciones dir
 - La única aplicación vigente es `apps/weightroom`, paquete `@gusm/weightroom`, Next.js 16 App Router, sin `src/` y alias `@/* -> ./*`.
 - Los grupos `(user)`, `(staff)` y `(admin)` son route groups de la misma app, no aplicaciones independientes.
 - Rutas públicas de producto: `/login`, `/reserva`, `/en-vivo`, `/qr`, `/perfil`, `/bloque` y `/configuracion`.
+- Noticias queda pendiente como un feed vertical administrable desde `/configuracion`, con avisos y flyers WebP ordenados desde el más reciente. Definir almacenamiento, metadatos editoriales y retención antes de implementar la carga de archivos.
 - Roles acumulativos: `admin` incluye `gym_staff`; `gym_staff` incluye las capacidades de usuario; `student` y `u_staff` usan las rutas de usuario. `student` es el default; `u_staff` queda limitado a un bloque.
 - Los bloques horarios fijos son: 1) 08:50-09:40, 2) 09:40-11:05, 3) 11:05-12:15, 4) 12:15-13:40, 5) 14:40-15:50, 6) 15:50-17:15, 7) 17:15-18:40, 8) 18:40-19:40 y 9) 19:40-21:05.
 - El bloque 7 es exclusivo para `u_staff` y los roles acumulativos `gym_staff` y `admin`. Un `u_staff` solo puede reservar su bloque asignado; los roles superiores pueden reservar el bloque 7 aunque no tengan `allowed_time_block_id`.
