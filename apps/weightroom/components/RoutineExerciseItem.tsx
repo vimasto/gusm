@@ -259,10 +259,10 @@ export function RoutineExerciseItem({
                 <button
                   type="button"
                   onClick={() => onRemove(item.id)}
-                  className="flex min-h-10 items-center gap-1.5 rounded-lg px-2 text-base text-red-500 transition-colors hover:bg-red-500/10 focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:outline-none active:scale-[0.98]"
+                  aria-label={`Quitar ${item.exercise.name} de la rutina`}
+                  className="flex size-10 items-center justify-center rounded-lg text-dim transition-colors hover:bg-red-500/10 hover:text-red-500 focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:outline-none active:scale-[0.98]"
                 >
                   <Trash2 className="size-4" aria-hidden="true" />
-                  Quitar
                 </button>
               </div>
             </div>
