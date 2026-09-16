@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  CheckCheck,
   CheckCircle2,
   CircleAlert,
   Clock3,
@@ -17,8 +16,13 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import clsx from "clsx";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { sileo } from "sileo";
 import { CREATE_SUPABASE_BROWSER_CLIENT } from "@gusm/database/client";
 import { CapacitySlots } from "@/components/CapacitySlots";
+import {
+  InstitutionalUserSearch,
+  type InstitutionalUserSearchResult,
+} from "@/components/InstitutionalUserSearch";
 import { UserTopBar } from "@/components/UserTopBar";
 import { getCurrentUser } from "@/lib/current-user";
 import { clearProfileCache } from "@/lib/profile-cache";
@@ -29,11 +33,7 @@ const OVERCAPACITY_LIMIT = 3;
 
 type AdmissionSource = "self_service" | "staff_exception" | "staff_overcapacity";
 type ParticipantStatus = "confirmed" | "present" | "requested";
-type ActionFeedback = {
-  description: string;
-  title: string;
-};
-type BlockParticipant = {
+type BlockParticipant = InstitutionalUserSearchResult & {
   admissionSource?: AdmissionSource;
   canReauthorizeLateQr?: boolean;
   id: string;
@@ -105,7 +105,6 @@ export default function CurrentBlockPage() {
   const [openParticipantId, setOpenParticipantId] = useState<string | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [feedback, setFeedback] = useState<ActionFeedback | null>(null);
 
   const currentUser = currentUserQuery.data;
   const normalizedQuery = query.trim().toLocaleLowerCase("es-CL");
@@ -117,10 +116,6 @@ export default function CurrentBlockPage() {
     return matchesQuery && !isAlreadyListed;
   });
 
-  function dismissFeedback() {
-    setFeedback(null);
-  }
-
   function handleParticipantAction(participant: BlockParticipant) {
     if (participant.status === "requested") {
       const isStandardAdmission = confirmedCount < STANDARD_CAPACITY;
@@ -129,8 +124,9 @@ export default function CurrentBlockPage() {
         : "staff_overcapacity";
 
       if (!isStandardAdmission && overcapacityCount >= OVERCAPACITY_LIMIT) {
-        setFeedback({
+        sileo.warning({
           description: "El máximo operativo de sobrecupo ya fue alcanzado para este bloque.",
+          position: "bottom-center",
           title: "No quedan sobrecupos disponibles",
         });
         return;
@@ -153,9 +149,10 @@ export default function CurrentBlockPage() {
       } else {
         setOvercapacityCount((currentCount) => currentCount + 1);
       }
-      setFeedback({
+      sileo.success({
         description:
           "La persona puede generar y presentar su QR durante los próximos cinco minutos.",
+        position: "bottom-center",
         title: isStandardAdmission ? "Ingreso autorizado" : "Sobrecupo autorizado",
       });
     } else if (participant.status === "confirmed") {
@@ -167,9 +164,11 @@ export default function CurrentBlockPage() {
         ),
       );
       setAuthorizationCount((currentCount) => currentCount + 1);
-      setFeedback({
+      sileo.info({
         description:
           "La reserva conserva su procedencia y su cupo. Solo se habilitó el QR por cinco minutos.",
+        position: "bottom-center",
+        styles: { title: "sileo-qr-temporary-title" },
         title: "QR habilitado temporalmente",
       });
     }
@@ -292,7 +291,7 @@ export default function CurrentBlockPage() {
                     }
                     className="py-3"
                   >
-                    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3">
+                    <div className="relative grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3">
                       <div className="min-w-0">
                         <p className="truncate text-base font-semibold text-foreground">
                           {participant.name}
@@ -317,12 +316,12 @@ export default function CurrentBlockPage() {
                           }
                           aria-expanded={isActionOpen}
                           aria-label={`Acciones para ${participant.name}`}
-                          className="col-start-2 row-start-2 flex size-6 items-center justify-center self-center justify-self-end text-accent transition-transform focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none active:scale-95"
+                          className="absolute right-0 bottom-0 flex size-5 items-center justify-center text-accent transition-transform focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none active:scale-95"
                         >
                           {isActionOpen ? (
                             <X className="size-4" aria-hidden="true" />
                           ) : (
-                            <MoreHorizontal className="size-5" aria-hidden="true" />
+                            <MoreHorizontal className="size-4" aria-hidden="true" />
                           )}
                         </button>
                       )}
@@ -411,47 +410,21 @@ export default function CurrentBlockPage() {
                   }
                   className="mt-4 flex flex-col gap-2 border-t border-accent/15 pt-4"
                 >
-                  <label className="sr-only" htmlFor="block-user-search">
-                    Buscar por usuario institucional
-                  </label>
-                  <input
-                    id="block-user-search"
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
+                  <InstitutionalUserSearch
+                    emptyMessage="No hay personas disponibles para añadir."
+                    inputId="block-user-search"
+                    onQueryChange={setQuery}
+                    onSelect={(result) => {
+                      const participant = searchResults.find(
+                        (candidate) => candidate.id === result.id,
+                      );
+                      if (participant) addSearchResult(participant);
+                    }}
                     placeholder="Buscar usuario institucional"
-                    className="gusm-input-primary w-full"
+                    query={query}
+                    results={searchResults}
+                    selectLabel="Añadir"
                   />
-                  <div className="flex flex-col divide-y divide-accent/15">
-                    {searchResults.length === 0 ? (
-                      <p className="px-1 py-3 text-sm text-dim">
-                        No hay personas disponibles para añadir.
-                      </p>
-                    ) : (
-                      searchResults.map((result) => (
-                        <div
-                          key={result.id}
-                          className="flex min-h-12 items-center justify-between gap-3 px-1"
-                        >
-                          <span className="min-w-0">
-                            <span className="block truncate text-base text-foreground">
-                              {result.name}
-                            </span>
-                            <span className="block truncate text-sm text-muted">
-                              {result.username}
-                            </span>
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => addSearchResult(result)}
-                            className="flex min-h-10 shrink-0 items-center gap-1.5 rounded-lg px-2 text-base text-accent transition-colors hover:bg-accent/10 focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none active:scale-[0.98]"
-                          >
-                            <UserPlus className="size-4" aria-hidden="true" />
-                            Añadir
-                          </button>
-                        </div>
-                      ))
-                    )}
-                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -462,38 +435,6 @@ export default function CurrentBlockPage() {
             Vista de maqueta: las autorizaciones no modifican reservas ni asistencias reales.
           </p>
         </div>
-
-        <AnimatePresence initial={false}>
-          {feedback && (
-            <motion.div
-              className="fixed inset-x-0 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-40 flex justify-center px-4"
-              initial={shouldReduceMotion ? false : { filter: "blur(2px)", opacity: 0 }}
-              animate={{ filter: "blur(0px)", opacity: 1 }}
-              exit={shouldReduceMotion ? undefined : { filter: "blur(2px)", opacity: 0 }}
-              transition={
-                shouldReduceMotion ? { duration: 0 } : { duration: 0.16, ease: [0.16, 1, 0.3, 1] }
-              }
-              role="status"
-              aria-live="polite"
-            >
-              <div className="flex w-full max-w-[var(--container-app)] items-start gap-3 rounded-xl border border-accent/35 bg-surface px-4 py-3 shadow-xl">
-                <CheckCheck className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden="true" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-base font-semibold text-foreground">{feedback.title}</p>
-                  <p className="mt-0.5 text-sm leading-5 text-muted">{feedback.description}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={dismissFeedback}
-                  aria-label="Cerrar aviso"
-                  className="shrink-0 text-muted transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
-                >
-                  <X className="size-4" aria-hidden="true" />
-                </button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
     </main>
   );
