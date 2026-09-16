@@ -3,11 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
+import { useQuery } from "@tanstack/react-query";
 import * as z from "zod/v4";
 import { CheckCircle2, Clock3, RefreshCw, TriangleAlert, XCircle } from "lucide-react";
 import { CREATE_SUPABASE_BROWSER_CLIENT } from "@gusm/database/client";
 import { clearProfileCache } from "@/lib/profile-cache";
 import { clearQueryCache } from "@/lib/query-client";
+import { getCurrentUser } from "@/lib/current-user";
+import { CURRENT_USER_QUERY_KEY } from "@/lib/query-keys";
 import { UserTopBar } from "@/components/UserTopBar";
 
 const TIMESTAMP_SCHEMA = z.string().refine((value) => !Number.isNaN(Date.parse(value)));
@@ -85,6 +88,11 @@ function formatRemainingSeconds(seconds: number) {
 
 export default function CheckInQrPage() {
   const router = useRouter();
+  const currentUserQuery = useQuery({
+    queryKey: CURRENT_USER_QUERY_KEY,
+    queryFn: getCurrentUser,
+  });
+  const currentUser = currentUserQuery.data;
   const issueLockRef = useRef(false);
   const [screen, setScreen] = useState<QrScreen>({ type: "loading" });
   const [remainingSeconds, setRemainingSeconds] = useState(0);
@@ -232,7 +240,11 @@ export default function CheckInQrPage() {
           <UserTopBar
             pageTitle="Asistencia"
             showActiveBookings={false}
-            onGoProfile={() => router.push("/perfil")}
+            role={currentUser?.role}
+            onGoBookings={() => router.push("/reserva")}
+            onGoOvercapacity={() => router.push("/bloque")}
+            onGoRoutines={() => router.push("/rutinas")}
+            onGoSettings={() => router.push("/configuracion")}
             onSignOut={signOut}
           />
         </header>

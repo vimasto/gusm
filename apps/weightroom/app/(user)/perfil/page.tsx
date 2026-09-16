@@ -338,7 +338,9 @@ export default function ProfilePage() {
             userName={profile?.userName}
             role={profile?.role}
             showActiveBookings={false}
+            onGoBookings={() => router.push("/reserva")}
             onGoOvercapacity={() => router.push("/bloque")}
+            onGoRoutines={() => router.push("/rutinas")}
             onGoSettings={() => router.push("/configuracion")}
             onSignOut={signOut}
             onThemePreferenceChange={profile ? updateThemePreference : undefined}
