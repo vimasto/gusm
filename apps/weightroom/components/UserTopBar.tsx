@@ -6,10 +6,13 @@ import {
   CalendarCheck,
   Dumbbell,
   Flame,
+  LayoutDashboard,
   LogOut,
   Menu,
+  QrCode,
   Settings,
   type LucideIcon,
+  User,
   Users,
 } from "lucide-react";
 import clsx from "clsx";
@@ -42,8 +45,11 @@ type UserTopBarProps = {
   userName?: string;
   role?: AppRole;
   streakWeeks?: number;
+  onGoProfile?: () => void;
+  onGoCheckIn?: () => void;
   onGoBookings?: () => void;
   onGoOvercapacity?: () => void;
+  onGoInformation?: () => void;
   onGoRoutines?: () => void;
   onGoSettings?: () => void;
   onSignOut?: () => void | Promise<void>;
@@ -83,8 +89,11 @@ export function UserTopBar({
   userName,
   role,
   streakWeeks,
+  onGoProfile,
+  onGoCheckIn,
   onGoBookings,
   onGoOvercapacity,
+  onGoInformation,
   onGoRoutines,
   onGoSettings,
   onSignOut,
@@ -218,6 +227,24 @@ export function UserTopBar({
         icon: Settings,
         onClick: onGoSettings,
       });
+    }
+    if (onSignOut) {
+      avatarMenu.push({
+        label: "Cerrar sesión",
+        icon: LogOut,
+        onClick: onSignOut,
+        variant: "destructive",
+      });
+    }
+  } else if (role === undefined) {
+    if (onGoProfile) {
+      avatarMenu.push({ label: "Perfil", icon: User, onClick: onGoProfile });
+    }
+    if (onGoCheckIn) {
+      avatarMenu.push({ label: "Marcar asistencia", icon: QrCode, onClick: onGoCheckIn });
+    }
+    if (onGoInformation) {
+      avatarMenu.push({ label: "Información", icon: LayoutDashboard, onClick: onGoInformation });
     }
     if (onSignOut) {
       avatarMenu.push({
