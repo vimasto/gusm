@@ -155,7 +155,7 @@ export function BookingActionControls({
               transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
               className={clsx(
                 RESERVATION_CONFIRM_BUTTON_CLASS,
-                "border-accent-fill bg-accent-fill text-accent-foreground hover:opacity-90 focus-visible:ring-accent",
+                "border-accent-fill bg-accent-fill font-semibold text-accent-foreground hover:opacity-90 focus-visible:ring-accent",
               )}
             >
               <Plus className="size-4" aria-hidden="true" />

@@ -68,6 +68,29 @@ export function isBookingDateAvailable(date: Date): boolean {
   return date >= today && date <= latestBookingDate;
 }
 
+export function isCalendarDayNavigable(weekOffset: number, dayIndex: number): boolean {
+  if (weekOffset <= 0) return true;
+
+  const date = getWeekDates(weekOffset)[dayIndex];
+  return date !== undefined && isBookingDateAvailable(date);
+}
+
+export function getNavigableCalendarDayIndex(
+  weekOffset: number,
+  requestedDayIndex: number,
+): number {
+  const weekDates = getWeekDates(weekOffset);
+  if (weekOffset <= 0 || isCalendarDayNavigable(weekOffset, requestedDayIndex)) {
+    return requestedDayIndex;
+  }
+
+  for (let dayIndex = weekDates.length - 1; dayIndex >= 0; dayIndex -= 1) {
+    if (isCalendarDayNavigable(weekOffset, dayIndex)) return dayIndex;
+  }
+
+  return 0;
+}
+
 type UserCalendarBannerProps = {
   accountLabel?: string;
   confirmationReminder?: React.ReactNode;
@@ -78,16 +101,17 @@ type UserCalendarBannerProps = {
   weekOffset: number;
   onSelectDay: (index: number) => void;
   onWeekChange: (offset: number) => void;
-  onGoProfile: () => void;
-  onGoCheckIn?: () => void;
+  onGoBookings?: () => void;
   onGoOvercapacity?: () => void;
-  onGoInformation?: () => void;
+  onGoRoutines?: () => void;
   onGoSettings?: () => void;
   onSignOut: () => void | Promise<void>;
   activeBookings: ActiveBooking[];
   onConfirmBooking: (bookingKey: string) => void;
   onCancelBooking: (bookingKey: string) => void;
+  showActiveBookings?: boolean;
   showUserName?: boolean;
+  showBookingsInMenu?: boolean;
   weekSelector?: React.ReactNode;
 };
 
@@ -108,16 +132,17 @@ export function UserCalendarBanner({
   weekOffset,
   onSelectDay,
   onWeekChange,
-  onGoProfile,
-  onGoCheckIn,
+  onGoBookings,
   onGoOvercapacity,
-  onGoInformation,
+  onGoRoutines,
   onGoSettings,
   onSignOut,
   activeBookings,
   onConfirmBooking,
   onCancelBooking,
+  showActiveBookings,
   showUserName,
+  showBookingsInMenu,
   weekSelector,
 }: UserCalendarBannerProps) {
   const today = getSantiagoToday();
@@ -157,16 +182,17 @@ export function UserCalendarBanner({
         userName={userName}
         role={role}
         streakWeeks={streakWeeks}
-        onGoProfile={onGoProfile}
-        onGoCheckIn={onGoCheckIn}
+        onGoBookings={onGoBookings}
         onGoOvercapacity={onGoOvercapacity}
-        onGoInformation={onGoInformation}
+        onGoRoutines={onGoRoutines}
         onGoSettings={onGoSettings}
         onSignOut={onSignOut}
         activeBookings={activeBookings}
         onConfirmBooking={onConfirmBooking}
         onCancelBooking={onCancelBooking}
+        showActiveBookings={showActiveBookings}
         showUserName={showUserName}
+        showBookingsInMenu={showBookingsInMenu}
       />
 
       {weekSelector}
@@ -183,8 +209,7 @@ export function UserCalendarBanner({
                   {slideWeek.map((date, index) => {
                     const isSelected = isSelectedWeek && index === selectedDay;
                     const isToday = isSameDay(date, today);
-                    const isBookingDateAvailableForDate = isBookingDateAvailable(date);
-                    const isDateSelectable = offset <= 0 || isBookingDateAvailableForDate;
+                    const isDateSelectable = isCalendarDayNavigable(offset, index);
                     const isInteractive = isSelectedWeek && isDateSelectable;
 
                     return (
@@ -209,7 +234,7 @@ export function UserCalendarBanner({
                           className={clsx(
                             "flex size-10 items-center justify-center rounded-full border transition-[background-color,box-shadow] duration-200",
                             isSelected
-                              ? "border-accent bg-accent shadow-accent"
+                              ? "border-transparent bg-accent shadow-accent"
                               : isToday
                                 ? "border-accent/55 bg-input"
                                 : "border-transparent bg-input",

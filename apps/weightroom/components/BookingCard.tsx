@@ -49,18 +49,20 @@ export function BookingCard({
         <p className="truncate text-base font-semibold text-foreground">{title}</p>
         {titleDetail && <span className="truncate text-sm text-muted">{titleDetail}</span>}
       </div>
-      <p
-        className={clsx(
-          "mt-0.5 text-sm",
-          detailTone === "danger"
-            ? "text-rose-400"
-            : detailTone === "warning"
-              ? "text-amber-500"
-              : "text-muted",
-        )}
-      >
-        {detail}
-      </p>
+      {detail && (
+        <p
+          className={clsx(
+            "mt-0.5 text-sm",
+            detailTone === "danger"
+              ? "text-rose-400"
+              : detailTone === "warning"
+                ? "text-amber-500"
+                : "text-muted",
+          )}
+        >
+          {detail}
+        </p>
+      )}
     </div>
   );
   const cardContent = (

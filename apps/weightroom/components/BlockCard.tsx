@@ -44,13 +44,16 @@ function getAvailabilityLabel(
   isTimeBlockPast: boolean,
 ): string {
   if (block.userStatus === "confirmed") return "Reserva confirmada";
-  if (block.userStatus === "inscribed") return "Reserva activa";
+  if (block.userStatus === "inscribed") return "Tu reserva";
   if (block.userStatus === "confirming") return "Ventana de confirmación activa";
-  if (isTimeBlockPast) return "Solo lectura";
-  if (block.taken >= totalSpots) return "Sin cupos disponibles";
+  if (isTimeBlockPast) return "";
+  if (block.taken >= totalSpots) return "Bloque lleno";
 
   const spotsLeft = totalSpots - block.taken;
-  return `${spotsLeft} cupo${spotsLeft === 1 ? "" : "s"} disponible${spotsLeft === 1 ? "" : "s"}`;
+  if (spotsLeft === 1) return "Último cupo disponible";
+  if (spotsLeft <= 5) return `Últimos ${spotsLeft} cupos disponibles`;
+
+  return "";
 }
 
 function getBookingActionState({

@@ -11,7 +11,9 @@ import {
   UserCalendarBanner,
   WeekIndicator,
   getWeekDates,
+  getNavigableCalendarDayIndex,
   getSantiagoToday,
+  isCalendarDayNavigable,
   isBookingDateAvailable,
   isSameDay,
   MIN_WEEK_OFFSET,
@@ -295,6 +297,8 @@ export default function BookingPage() {
   const isStudentUser = currentUser?.role === "student";
   const isStaffBookingView =
     currentUser?.role === "u_staff" || STAFF_BOOKING_LAYOUT_PREVIEW_ENABLED;
+  const usesDirectActiveBookings =
+    currentUser?.role === "student" || currentUser?.role === "u_staff";
 
   const bookingAvailabilityQueries = useQueries({
     queries: [MIN_WEEK_OFFSET, 0, MAX_WEEK_OFFSET].map((offset) => {
@@ -550,6 +554,8 @@ export default function BookingPage() {
   // ── Handlers de calendario ────────────────────────────────────────────────
 
   function handleSelectDay(index: number) {
+    if (!isCalendarDayNavigable(weekOffset, index)) return;
+
     if (index !== dayIdx) {
       blockGridTransitionDirection.current = index < dayIdx ? 1 : -1;
     }
@@ -583,14 +589,15 @@ export default function BookingPage() {
 
   function handleWeekChange(offset: number, nextDayIndex = dayIdx) {
     const clamped = Math.max(MIN_WEEK_OFFSET, Math.min(MAX_WEEK_OFFSET, offset));
+    const navigableDayIndex = getNavigableCalendarDayIndex(clamped, nextDayIndex);
     if (clamped !== weekOffset) {
       blockGridTransitionDirection.current = clamped < weekOffset ? 1 : -1;
     }
     setWeekOffset(clamped);
     setIsAdmissionRequested(false);
     setIsBookingReplacementRequested(false);
-    setDayIdx(nextDayIndex);
-    const nextDate = getWeekDates(clamped)[nextDayIndex];
+    setDayIdx(navigableDayIndex);
+    const nextDate = getWeekDates(clamped)[navigableDayIndex];
     const nextBooking = nextDate
       ? bookingEntries.find(
           (entry) => getBookingDateKey(entry.bookingDate) === getBookingDateKey(nextDate),
@@ -887,20 +894,16 @@ export default function BookingPage() {
     void cancelBooking(bookingEntry);
   }
 
-  function handleGoProfile() {
-    router.push("/perfil");
-  }
-
-  function handleGoCheckIn() {
-    router.push("/qr");
-  }
-
   function handleGoCurrentBlock() {
     router.push("/bloque");
   }
 
   function handleGoSettings() {
     router.push("/configuracion");
+  }
+
+  function handleGoRoutines() {
+    router.push("/rutinas");
   }
 
   function handleBlockGridDragEnd(
@@ -915,7 +918,11 @@ export default function BookingPage() {
     const dayDelta = direction < 0 ? 1 : -1;
     const nextDayIndex = dayIdx + dayDelta;
 
-    if (nextDayIndex >= 0 && nextDayIndex < getWeekDates(weekOffset).length) {
+    if (
+      nextDayIndex >= 0 &&
+      nextDayIndex < getWeekDates(weekOffset).length &&
+      isCalendarDayNavigable(weekOffset, nextDayIndex)
+    ) {
       handleSelectDay(nextDayIndex);
       return;
     }
@@ -1021,12 +1028,15 @@ export default function BookingPage() {
               accountLabel={getReservationAccountLabel(currentUser?.role)}
               role={currentUser?.role ?? "u_staff"}
               streakWeeks={currentUser?.streakWeeks}
-              onGoProfile={handleGoProfile}
-              onGoCheckIn={handleGoCheckIn}
+              onGoOvercapacity={handleGoCurrentBlock}
+              onGoRoutines={handleGoRoutines}
+              onGoSettings={handleGoSettings}
               onSignOut={handleSignOut}
               activeBookings={activeBookings}
               onConfirmBooking={handleConfirmActiveBooking}
               onCancelBooking={handleCancelActiveBooking}
+              showActiveBookings={usesDirectActiveBookings}
+              showBookingsInMenu={!usesDirectActiveBookings}
               showUserName={false}
             />
             <WeekIndicator compact weekOffset={weekOffset} onWeekChange={handleWeekChange} />
@@ -1041,14 +1051,15 @@ export default function BookingPage() {
             weekOffset={weekOffset}
             onSelectDay={handleSelectDay}
             onWeekChange={handleWeekChange}
-            onGoProfile={handleGoProfile}
-            onGoCheckIn={handleGoCheckIn}
             onGoOvercapacity={handleGoCurrentBlock}
+            onGoRoutines={handleGoRoutines}
             onGoSettings={handleGoSettings}
             onSignOut={handleSignOut}
             activeBookings={activeBookings}
             onConfirmBooking={handleConfirmActiveBooking}
             onCancelBooking={handleCancelActiveBooking}
+            showBookingsInMenu={!usesDirectActiveBookings}
+            showActiveBookings={usesDirectActiveBookings}
             showUserName={false}
             weekSelector={<WeekIndicator weekOffset={weekOffset} onWeekChange={handleWeekChange} />}
             confirmationReminder={
