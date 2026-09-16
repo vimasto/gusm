@@ -7,6 +7,7 @@ import {
   Ban,
   CalendarDays,
   CalendarRange,
+  ChevronDown,
   Download,
   Loader2,
   Repeat2,
@@ -19,6 +20,7 @@ import {
   X,
 } from "lucide-react";
 import * as z from "zod/v4";
+import clsx from "clsx";
 import { CREATE_SUPABASE_BROWSER_CLIENT } from "@gusm/database/client";
 import { UserTopBar } from "@/components/UserTopBar";
 import { getCurrentUser } from "@/lib/current-user";
@@ -97,6 +99,7 @@ type ExportPeriod = "week" | "month" | "custom";
 type ExportCategory = "all" | "bookings" | "attendance" | "warnings" | "discipline";
 type DisciplineViolationType = DisciplineRule["violation_type"];
 type DisciplineActionKind = DisciplineRule["action_kind"];
+type ConfigurationArea = "operation" | "discipline" | "data";
 
 const ISO_WEEKDAY_LABELS = [
   "",
@@ -125,6 +128,11 @@ const EXPORT_CATEGORY_LABELS: Record<ExportCategory, string> = {
   warnings: "Warnings",
   discipline: "Sanciones",
 };
+const CONFIGURATION_AREAS: { id: ConfigurationArea; label: string }[] = [
+  { id: "operation", label: "Operación" },
+  { id: "discipline", label: "Disciplina" },
+  { id: "data", label: "Datos" },
+];
 
 function isDisciplineViolationType(value: string): value is DisciplineViolationType {
   return Object.hasOwn(DISCIPLINE_VIOLATION_LABELS, value);
@@ -223,6 +231,42 @@ function getDisciplineRuleSummary(rule: DisciplineRule) {
   return `${rule.occurrence_threshold} ${rule.occurrence_threshold === 1 ? "vez" : "veces"}: ${DISCIPLINE_VIOLATION_LABELS[rule.violation_type].toLocaleLowerCase("es-CL")}`;
 }
 
+function getSegmentedControlClassName(isSelected: boolean) {
+  return clsx(
+    "min-h-11 rounded-lg px-2 py-2 text-base transition-colors focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none",
+    isSelected
+      ? "bg-accent-fill font-medium text-accent-foreground"
+      : "text-muted hover:bg-input hover:text-foreground",
+  );
+}
+
+function getClosureDraftLabel(
+  coverage: ClosureCoverage,
+  frequency: ClosureFrequency,
+  startDate: string,
+  endDate: string,
+  weekday: string,
+  timeBlockId: string,
+  timeBlocks: z.infer<typeof TIME_BLOCK_SCHEMA>[],
+) {
+  const timeBlock = timeBlocks.find((item) => String(item.timeBlockId) === timeBlockId);
+  const blockLabel = timeBlock
+    ? `Bloque ${timeBlock.timeBlockId} · ${getTimeRange(timeBlock)}`
+    : `Bloque ${timeBlockId}`;
+
+  if (frequency === "always") {
+    return `${ISO_WEEKDAY_LABELS[Number(weekday)] ?? "Día de semana"} · ${blockLabel}`;
+  }
+
+  if (coverage === "range") {
+    return `${getDateLabel(startDate)} a ${getDateLabel(endDate)} · todos los bloques`;
+  }
+
+  if (coverage === "day") return `${getDateLabel(startDate)} · todos los bloques`;
+
+  return `${getDateLabel(startDate)} · ${blockLabel}`;
+}
+
 async function getConfiguration(): Promise<Configuration> {
   const response = await fetch("/api/configuration", { cache: "no-store" });
   if (!response.ok) throw new Error("Configuration request was rejected.");
@@ -251,6 +295,8 @@ export default function ConfigurationPage() {
   const today = getSantiagoDate();
   const [sessionsPerDay, setSessionsPerDay] = useState("1");
   const [overcapacityMax, setOvercapacityMax] = useState("0");
+  const [activeArea, setActiveArea] = useState<ConfigurationArea>("operation");
+  const [isClosureEditorOpen, setIsClosureEditorOpen] = useState(false);
   const [closureCoverage, setClosureCoverage] = useState<ClosureCoverage>("block");
   const [closureFrequency, setClosureFrequency] = useState<ClosureFrequency>("once");
   const [closureStartDate, setClosureStartDate] = useState(today);
@@ -340,6 +386,17 @@ export default function ConfigurationPage() {
     new Date(`${exportRange.endDate}T00:00:00.000Z`).getTime() -
     new Date(`${exportRange.startDate}T00:00:00.000Z`).getTime();
   const isExportRangeValid = exportRangeDuration >= 0 && exportRangeDuration <= 31 * 86_400_000;
+  const closureDraftLabel = configuration
+    ? getClosureDraftLabel(
+        closureCoverage,
+        closureFrequency,
+        closureStartDate,
+        closureEndDate,
+        closureWeekday,
+        closureTimeBlockId,
+        configuration.timeBlocks,
+      )
+    : "";
   const exportUrl =
     exportPeriod === "custom"
       ? `/api/configuration/export?start=${exportRange.startDate}&end=${exportRange.endDate}&category=${exportCategory}`
@@ -448,6 +505,7 @@ export default function ConfigurationPage() {
       if (response.status !== 204) throw new Error("Closure creation was rejected.");
 
       setClosureReason("");
+      setIsClosureEditorOpen(false);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ADMIN_CONFIGURATION_QUERY_KEY }),
         queryClient.invalidateQueries({ queryKey: BOOKING_CLOSURES_QUERY_KEY }),
@@ -668,23 +726,46 @@ export default function ConfigurationPage() {
             pageTitle="Configuración"
             showActiveBookings={false}
             role={currentUser?.role}
-            onGoProfile={() => router.push("/perfil")}
+            onGoBookings={() => router.push("/reserva")}
+            onGoOvercapacity={() => router.push("/bloque")}
+            onGoRoutines={() => router.push("/rutinas")}
+            onGoSettings={() => router.push("/configuracion")}
             onSignOut={signOut}
           />
         </header>
 
-        <div className="flex gusm-page-scroll flex-col gap-5 px-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))]">
+        <div className="flex gusm-page-scroll flex-col gap-4 px-4 pt-5 pb-[calc(5.5rem+env(safe-area-inset-bottom))]">
           <section className="border-b border-divider pb-4">
-            <div className="flex items-center gap-3 text-accent">
-              <Settings2 className="size-6" aria-hidden="true" />
+            <div className="flex items-start gap-3">
+              <Settings2 className="mt-1 size-5 shrink-0 text-accent" aria-hidden="true" />
               <div>
-                <h1 className="text-xl font-semibold text-foreground">Reglas de operación</h1>
+                <p className="text-xs font-medium tracking-[0.12em] text-dim uppercase">
+                  Administración
+                </p>
+                <h1 className="mt-1 text-lg font-semibold text-foreground">Configuración</h1>
                 <p className="mt-1 text-sm text-muted">
                   Los cambios se aplican inmediatamente a nuevas operaciones.
                 </p>
               </div>
             </div>
           </section>
+
+          <nav
+            aria-label="Áreas de configuración"
+            className="grid grid-cols-3 gap-1 rounded-xl border border-accent/15 bg-input/30 p-1"
+          >
+            {CONFIGURATION_AREAS.map((area) => (
+              <button
+                key={area.id}
+                type="button"
+                aria-pressed={activeArea === area.id}
+                onClick={() => setActiveArea(area.id)}
+                className={getSegmentedControlClassName(activeArea === area.id)}
+              >
+                {area.label}
+              </button>
+            ))}
+          </nav>
 
           {(errorMessage || hasInitialLoadError) && (
             <p
@@ -711,324 +792,688 @@ export default function ConfigurationPage() {
             </div>
           ) : (
             <>
-              <section className="rounded-2xl border border-divider bg-input/20 p-4">
-                <h2 className="text-base font-semibold text-foreground">Límites de reserva</h2>
-                <p className="mt-1 text-sm text-muted">
-                  La capacidad estándar vigente es de {configuration.settings.standardCapacity}{" "}
-                  cupos.
-                </p>
+              {activeArea === "operation" && (
+                <>
+                  <section className="rounded-2xl border border-accent/15 bg-input/30 px-4 py-4">
+                    <p className="text-xs font-medium tracking-[0.12em] text-dim uppercase">
+                      Reserva
+                    </p>
+                    <h2 className="mt-1 text-lg font-semibold text-foreground">
+                      Límites de reserva
+                    </h2>
+                    <p className="mt-1 text-sm text-muted">
+                      La capacidad estándar vigente es de {configuration.settings.standardCapacity}{" "}
+                      cupos.
+                    </p>
 
-                <div className="mt-4 grid grid-cols-2 gap-3">
-                  <label className="flex min-w-0 flex-col gap-2 text-sm text-muted">
-                    Sesiones diarias
-                    <input
-                      type="number"
-                      min="1"
-                      step="1"
-                      value={sessionsPerDay}
-                      onChange={(event) => setSessionsPerDay(event.target.value)}
-                      className="gusm-control-height rounded-xl border border-divider bg-surface px-3 text-base text-foreground outline-none focus:border-accent/60"
-                    />
-                  </label>
-                  <label className="flex min-w-0 flex-col gap-2 text-sm text-muted">
-                    Máximo sobrecupo
-                    <input
-                      type="number"
-                      min="0"
-                      step="1"
-                      value={overcapacityMax}
-                      onChange={(event) => setOvercapacityMax(event.target.value)}
-                      className="gusm-control-height rounded-xl border border-divider bg-surface px-3 text-base text-foreground outline-none focus:border-accent/60"
-                    />
-                  </label>
-                </div>
+                    <div className="mt-4 grid grid-cols-2 gap-3">
+                      <label className="flex min-w-0 flex-col gap-2 text-sm text-muted">
+                        Sesiones diarias
+                        <input
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={sessionsPerDay}
+                          onChange={(event) => setSessionsPerDay(event.target.value)}
+                          className="gusm-input-primary"
+                        />
+                      </label>
+                      <label className="flex min-w-0 flex-col gap-2 text-sm text-muted">
+                        Máximo sobrecupo
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={overcapacityMax}
+                          onChange={(event) => setOvercapacityMax(event.target.value)}
+                          className="gusm-input-primary"
+                        />
+                      </label>
+                    </div>
 
-                <button
-                  type="button"
-                  onClick={() => void saveSettings()}
-                  disabled={isSavingSettings}
-                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-accent-fill py-3 text-base text-accent-foreground active:scale-[0.98] disabled:opacity-40"
-                >
-                  {isSavingSettings ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <Save className="size-4" />
-                  )}
-                  Guardar límites
-                </button>
-              </section>
+                    <button
+                      type="button"
+                      onClick={() => void saveSettings()}
+                      disabled={isSavingSettings}
+                      className="mt-4 flex w-full gusm-button-primary items-center justify-center gap-2"
+                    >
+                      {isSavingSettings ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <Save className="size-4" />
+                      )}
+                      Guardar límites
+                    </button>
+                  </section>
 
-              <section className="rounded-2xl border border-divider bg-input/20 p-4">
-                <h2 className="text-base font-semibold text-foreground">Inhabilitar bloque</h2>
-                <p className="mt-1 text-sm text-muted">
-                  El motivo se muestra al usuario al intentar reservar.
-                </p>
+                  <section className="rounded-2xl border border-accent/15 bg-input/30 px-4 py-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-xs font-medium tracking-[0.12em] text-dim uppercase">
+                          Disponibilidad
+                        </p>
+                        <h2 className="mt-1 text-lg font-semibold text-foreground">
+                          Inhabilitaciones
+                        </h2>
+                        <p className="mt-1 text-sm text-muted">
+                          Las puntuales vencen al terminar su fecha.
+                        </p>
+                      </div>
+                      <span className="rounded-full border border-accent/15 px-2 py-1 text-sm text-muted">
+                        {closures.length}
+                      </span>
+                    </div>
 
-                <div className="mt-4 grid grid-cols-3 gap-2 rounded-xl border border-divider bg-surface p-1">
-                  <button
-                    type="button"
-                    onClick={() => setClosureCoverage("block")}
-                    className={`rounded-lg py-2 text-base ${closureCoverage === "block" ? "bg-accent-fill text-accent-foreground" : "text-muted"}`}
-                  >
-                    Bloque
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setClosureCoverage("day");
-                      setClosureFrequency("once");
-                    }}
-                    className={`rounded-lg py-2 text-base ${closureCoverage === "day" ? "bg-accent-fill text-accent-foreground" : "text-muted"}`}
-                  >
-                    Día
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setClosureCoverage("range");
-                      setClosureFrequency("once");
-                    }}
-                    className={`rounded-lg py-2 text-base ${closureCoverage === "range" ? "bg-accent-fill text-accent-foreground" : "text-muted"}`}
-                  >
-                    Varios días
-                  </button>
-                </div>
+                    <div className="mt-4 flex flex-col gap-2">
+                      {closures.length === 0 ? (
+                        <p className="rounded-xl border border-accent/15 bg-surface px-3 py-4 text-center text-sm text-dim">
+                          No hay inhabilitaciones vigentes.
+                        </p>
+                      ) : (
+                        closures.map((closure) => {
+                          const closureKey = getClosureKey(closure);
+                          const isRemoving = removingClosureKey === closureKey;
+                          const closureLabel = getClosureLabel(closure, configuration.timeBlocks);
 
-                <div className="mt-3 grid grid-cols-2 gap-2 rounded-xl border border-divider bg-surface p-1">
-                  <button
-                    type="button"
-                    onClick={() => setClosureFrequency("once")}
-                    className={`rounded-lg py-2 text-base ${closureFrequency === "once" ? "bg-accent-fill text-accent-foreground" : "text-muted"}`}
-                  >
-                    Una vez
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setClosureFrequency("always")}
-                    disabled={closureCoverage !== "block"}
-                    className={`rounded-lg py-2 text-base ${closureFrequency === "always" ? "bg-accent-fill text-accent-foreground" : "text-muted"} disabled:cursor-not-allowed disabled:opacity-35`}
-                  >
-                    Siempre
-                  </button>
-                </div>
+                          return (
+                            <article
+                              key={closureKey}
+                              className="flex items-start gap-3 rounded-xl border border-accent/15 bg-surface px-3 py-3"
+                            >
+                              {closure.scope === "weekly" ? (
+                                <Repeat2
+                                  className="mt-0.5 size-4 shrink-0 text-accent"
+                                  aria-hidden="true"
+                                />
+                              ) : closure.scope === "period" ? (
+                                <CalendarRange
+                                  className="mt-0.5 size-4 shrink-0 text-accent"
+                                  aria-hidden="true"
+                                />
+                              ) : (
+                                <CalendarDays
+                                  className="mt-0.5 size-4 shrink-0 text-accent"
+                                  aria-hidden="true"
+                                />
+                              )}
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-medium text-foreground">
+                                  {closureLabel}
+                                </p>
+                                <p className="mt-1 text-sm text-muted">{closure.reason}</p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => void removeClosure(closure)}
+                                disabled={isRemoving}
+                                aria-label={`Anular ${closureLabel}`}
+                                className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-rose-500/30 bg-rose-500/5 text-rose-400 disabled:opacity-40"
+                              >
+                                {isRemoving ? (
+                                  <Loader2 className="size-4 animate-spin" />
+                                ) : (
+                                  <Trash2 className="size-4" />
+                                )}
+                              </button>
+                            </article>
+                          );
+                        })
+                      )}
+                    </div>
 
-                {closureCoverage !== "block" && (
-                  <p className="mt-2 text-sm text-muted">
-                    El cierre de día completo se programa una vez y reúne todos los bloques bajo un
-                    único motivo.
-                  </p>
-                )}
+                    <button
+                      type="button"
+                      onClick={() => setIsClosureEditorOpen((isOpen) => !isOpen)}
+                      aria-expanded={isClosureEditorOpen}
+                      className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-accent/30 bg-accent/10 px-4 py-3 text-base font-medium text-accent transition-colors hover:bg-accent/15 focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
+                    >
+                      {isClosureEditorOpen ? "Cerrar edición" : "Nueva inhabilitación"}
+                      <ChevronDown
+                        className={clsx(
+                          "size-4 transition-transform duration-200",
+                          isClosureEditorOpen && "rotate-180",
+                        )}
+                        aria-hidden="true"
+                      />
+                    </button>
 
-                <div className="mt-3 flex flex-col gap-3">
-                  {closureFrequency === "always" ? (
-                    <>
-                      <label className="flex flex-col gap-2 text-sm text-muted">
-                        Día de la semana
+                    {isClosureEditorOpen && (
+                      <div className="mt-4 border-t border-accent/15 pt-4">
+                        <fieldset>
+                          <legend className="text-sm font-medium text-foreground">
+                            Alcance del cierre
+                          </legend>
+                          <div className="mt-2 grid grid-cols-3 gap-1 rounded-xl border border-divider bg-surface p-1">
+                            <button
+                              type="button"
+                              onClick={() => setClosureCoverage("block")}
+                              className={getSegmentedControlClassName(closureCoverage === "block")}
+                            >
+                              Bloque
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setClosureCoverage("day");
+                                setClosureFrequency("once");
+                              }}
+                              className={getSegmentedControlClassName(closureCoverage === "day")}
+                            >
+                              Día
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setClosureCoverage("range");
+                                setClosureFrequency("once");
+                              }}
+                              className={getSegmentedControlClassName(closureCoverage === "range")}
+                            >
+                              Varios días
+                            </button>
+                          </div>
+                        </fieldset>
+
+                        {closureCoverage === "block" && (
+                          <fieldset className="mt-4">
+                            <legend className="text-sm font-medium text-foreground">
+                              Frecuencia
+                            </legend>
+                            <div className="mt-2 grid grid-cols-2 gap-1 rounded-xl border border-divider bg-surface p-1">
+                              <button
+                                type="button"
+                                onClick={() => setClosureFrequency("once")}
+                                className={getSegmentedControlClassName(
+                                  closureFrequency === "once",
+                                )}
+                              >
+                                Una vez
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setClosureFrequency("always")}
+                                className={getSegmentedControlClassName(
+                                  closureFrequency === "always",
+                                )}
+                              >
+                                Cada semana
+                              </button>
+                            </div>
+                          </fieldset>
+                        )}
+
+                        <div className="mt-4 flex flex-col gap-3">
+                          {closureFrequency === "always" ? (
+                            <>
+                              <label className="flex flex-col gap-2 text-sm text-foreground-muted">
+                                Día de la semana
+                                <select
+                                  value={closureWeekday}
+                                  onChange={(event) => setClosureWeekday(event.target.value)}
+                                  className="gusm-input-primary"
+                                >
+                                  {ISO_WEEKDAY_LABELS.slice(1).map((label, index) => (
+                                    <option key={label} value={index + 1}>
+                                      {label}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                              <label className="flex flex-col gap-2 text-sm text-foreground-muted">
+                                Bloque horario
+                                <select
+                                  value={closureTimeBlockId}
+                                  onChange={(event) => setClosureTimeBlockId(event.target.value)}
+                                  className="gusm-input-primary"
+                                >
+                                  {configuration.timeBlocks.map((timeBlock) => (
+                                    <option
+                                      key={timeBlock.timeBlockId}
+                                      value={timeBlock.timeBlockId}
+                                    >
+                                      Bloque {timeBlock.timeBlockId} · {getTimeRange(timeBlock)}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                            </>
+                          ) : closureCoverage === "range" ? (
+                            <div className="grid grid-cols-2 gap-3">
+                              <label className="flex min-w-0 flex-col gap-2 text-sm text-foreground-muted">
+                                Desde
+                                <input
+                                  type="date"
+                                  min={today}
+                                  value={closureStartDate}
+                                  onChange={(event) => setClosureStartDate(event.target.value)}
+                                  className="gusm-input-primary"
+                                />
+                              </label>
+                              <label className="flex min-w-0 flex-col gap-2 text-sm text-foreground-muted">
+                                Hasta
+                                <input
+                                  type="date"
+                                  min={closureStartDate}
+                                  value={closureEndDate}
+                                  onChange={(event) => setClosureEndDate(event.target.value)}
+                                  className="gusm-input-primary"
+                                />
+                              </label>
+                            </div>
+                          ) : (
+                            <label className="flex flex-col gap-2 text-sm text-foreground-muted">
+                              Fecha
+                              <input
+                                type="date"
+                                min={today}
+                                value={closureStartDate}
+                                onChange={(event) => setClosureStartDate(event.target.value)}
+                                className="gusm-input-primary"
+                              />
+                            </label>
+                          )}
+
+                          {closureFrequency === "once" && closureCoverage === "block" && (
+                            <label className="flex flex-col gap-2 text-sm text-foreground-muted">
+                              Bloque horario
+                              <select
+                                value={closureTimeBlockId}
+                                onChange={(event) => setClosureTimeBlockId(event.target.value)}
+                                className="gusm-input-primary"
+                              >
+                                {configuration.timeBlocks.map((timeBlock) => (
+                                  <option key={timeBlock.timeBlockId} value={timeBlock.timeBlockId}>
+                                    Bloque {timeBlock.timeBlockId} · {getTimeRange(timeBlock)}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          )}
+
+                          <label className="flex flex-col gap-2 text-sm text-foreground-muted">
+                            Motivo
+                            <textarea
+                              value={closureReason}
+                              onChange={(event) => setClosureReason(event.target.value)}
+                              maxLength={240}
+                              rows={3}
+                              placeholder="Ej.: Mantención de equipamiento"
+                              className="gusm-input-primary resize-y"
+                            />
+                          </label>
+                        </div>
+
+                        <dl className="mt-4 divide-y divide-accent/15 border-y border-accent/15">
+                          <div className="py-3">
+                            <dt className="text-sm text-muted">Se inhabilitará</dt>
+                            <dd className="mt-1 text-base font-medium text-foreground">
+                              {closureDraftLabel}
+                            </dd>
+                          </div>
+                          <div className="py-3">
+                            <dt className="text-sm text-muted">Motivo visible</dt>
+                            <dd className="mt-1 text-base font-medium text-foreground">
+                              {closureReason.trim() || "Pendiente"}
+                            </dd>
+                          </div>
+                        </dl>
+
+                        <div className="mt-4 grid grid-cols-2 gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setIsClosureEditorOpen(false)}
+                            disabled={isSavingClosure}
+                            className="gusm-control-height rounded-xl border border-divider px-4 text-base text-foreground-muted transition-colors hover:border-muted disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void createClosure()}
+                            disabled={isSavingClosure}
+                            className="flex gusm-button-primary items-center justify-center gap-2"
+                          >
+                            {isSavingClosure ? (
+                              <Loader2 className="size-4 animate-spin" />
+                            ) : (
+                              <CalendarDays className="size-4" />
+                            )}
+                            Guardar cierre
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </section>
+                </>
+              )}
+
+              {activeArea === "discipline" && (
+                <>
+                  <section className="rounded-2xl border border-accent/15 bg-input/30 px-4 py-4">
+                    <div className="flex items-start gap-3">
+                      <ShieldAlert
+                        className="mt-1 size-5 shrink-0 text-accent"
+                        aria-hidden="true"
+                      />
+                      <div>
+                        <p className="text-xs font-medium tracking-[0.12em] text-dim uppercase">
+                          Disciplina
+                        </p>
+                        <h2 className="mt-1 text-lg font-semibold text-foreground">
+                          Reglas de castigo
+                        </h2>
+                        <p className="mt-1 text-sm text-muted">
+                          Cada falta se evalúa en una ventana móvil. La sanción se aplica al
+                          alcanzar exactamente el umbral.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 flex flex-col gap-3">
+                      <label className="flex flex-col gap-2 text-sm text-foreground-muted">
+                        Tipo de falta
                         <select
-                          value={closureWeekday}
-                          onChange={(event) => setClosureWeekday(event.target.value)}
-                          className="gusm-control-height rounded-xl border border-divider bg-surface px-3 text-base text-foreground outline-none focus:border-accent/60"
+                          value={disciplineViolationType}
+                          onChange={(event) => {
+                            if (isDisciplineViolationType(event.target.value)) {
+                              setDisciplineViolationType(event.target.value);
+                            }
+                          }}
+                          className="gusm-input-primary"
                         >
-                          {ISO_WEEKDAY_LABELS.slice(1).map((label, index) => (
-                            <option key={label} value={index + 1}>
+                          {Object.entries(DISCIPLINE_VIOLATION_LABELS).map(([value, label]) => (
+                            <option key={value} value={value}>
                               {label}
                             </option>
                           ))}
                         </select>
                       </label>
 
-                      <label className="flex flex-col gap-2 text-sm text-muted">
-                        Bloque horario
+                      <div className="grid grid-cols-2 gap-3">
+                        <label className="flex flex-col gap-2 text-sm text-foreground-muted">
+                          Repeticiones
+                          <input
+                            type="number"
+                            min="1"
+                            step="1"
+                            value={disciplineThreshold}
+                            onChange={(event) => setDisciplineThreshold(event.target.value)}
+                            className="gusm-input-primary"
+                          />
+                        </label>
+                        <label className="flex flex-col gap-2 text-sm text-foreground-muted">
+                          En últimos días
+                          <input
+                            type="number"
+                            min="1"
+                            max="365"
+                            step="1"
+                            value={disciplineWindowDays}
+                            onChange={(event) => setDisciplineWindowDays(event.target.value)}
+                            className="gusm-input-primary"
+                          />
+                        </label>
+                      </div>
+
+                      <label className="flex flex-col gap-2 text-sm text-foreground-muted">
+                        Sanción
                         <select
-                          value={closureTimeBlockId}
-                          onChange={(event) => setClosureTimeBlockId(event.target.value)}
-                          className="gusm-control-height rounded-xl border border-divider bg-surface px-3 text-base text-foreground outline-none focus:border-accent/60"
+                          value={disciplineActionKind}
+                          onChange={(event) => {
+                            if (isDisciplineActionKind(event.target.value)) {
+                              setDisciplineActionKind(event.target.value);
+                            }
+                          }}
+                          className="gusm-input-primary"
                         >
-                          {configuration.timeBlocks.map((timeBlock) => (
-                            <option key={timeBlock.timeBlockId} value={timeBlock.timeBlockId}>
-                              Bloque {timeBlock.timeBlockId} · {getTimeRange(timeBlock)}
+                          {Object.entries(DISCIPLINE_ACTION_LABELS).map(([value, label]) => (
+                            <option key={value} value={value}>
+                              {label}
                             </option>
                           ))}
                         </select>
                       </label>
-                    </>
-                  ) : closureCoverage === "range" ? (
-                    <div className="grid grid-cols-2 gap-3">
-                      <label className="flex min-w-0 flex-col gap-2 text-sm text-muted">
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => void saveDisciplineRule()}
+                      disabled={isSavingDiscipline}
+                      className="mt-4 flex w-full gusm-button-primary items-center justify-center gap-2"
+                    >
+                      {isSavingDiscipline ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <ShieldAlert className="size-4" />
+                      )}
+                      Guardar regla
+                    </button>
+
+                    <div className="mt-4 flex flex-col gap-2">
+                      {disciplineRules.length === 0 ? (
+                        <p className="rounded-xl border border-accent/15 bg-surface px-3 py-4 text-center text-sm text-dim">
+                          No hay reglas de castigo activas.
+                        </p>
+                      ) : (
+                        disciplineRules.map((rule) => {
+                          const isRemoving = removingDisciplineRuleId === rule.discipline_rule_id;
+                          const actionLabel = DISCIPLINE_ACTION_LABELS[rule.action_kind];
+                          const violationLabel = DISCIPLINE_VIOLATION_LABELS[rule.violation_type];
+
+                          return (
+                            <article
+                              key={rule.discipline_rule_id}
+                              className="flex items-center gap-3 rounded-xl border border-accent/15 bg-surface px-3 py-3"
+                            >
+                              <ShieldAlert
+                                className="size-4 shrink-0 text-accent"
+                                aria-hidden="true"
+                              />
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-medium text-foreground">
+                                  {getDisciplineRuleSummary(rule)} en {rule.window_days} días
+                                </p>
+                                <p className="mt-1 text-sm text-muted">{actionLabel}</p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => void removeDisciplineRule(rule.discipline_rule_id)}
+                                disabled={isRemoving}
+                                aria-label={`Desactivar regla: ${violationLabel}`}
+                                className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-rose-500/30 bg-rose-500/5 text-rose-400 disabled:opacity-40"
+                              >
+                                {isRemoving ? (
+                                  <Loader2 className="size-4 animate-spin" />
+                                ) : (
+                                  <Trash2 className="size-4" />
+                                )}
+                              </button>
+                            </article>
+                          );
+                        })
+                      )}
+                    </div>
+                  </section>
+
+                  <section className="rounded-2xl border border-accent/15 bg-input/30 px-4 py-4">
+                    <div className="flex items-start gap-3">
+                      <UserRoundSearch
+                        className="mt-1 size-5 shrink-0 text-accent"
+                        aria-hidden="true"
+                      />
+                      <div>
+                        <p className="text-xs font-medium tracking-[0.12em] text-dim uppercase">
+                          Cuentas
+                        </p>
+                        <h2 className="mt-1 text-lg font-semibold text-foreground">
+                          Acceso de usuarios
+                        </h2>
+                        <p className="mt-1 text-sm text-muted">
+                          Deshabilita o restaura una cuenta por su usuario institucional. No elimina
+                          su historial.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 flex gap-2">
+                      <input
+                        type="search"
+                        value={userQuery}
+                        onChange={(event) => setUserQuery(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") void searchUsers();
+                        }}
+                        placeholder="usuario institucional"
+                        className="gusm-input-primary min-w-0 flex-1"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void searchUsers()}
+                        disabled={isSearchingUsers}
+                        className="flex shrink-0 items-center justify-center rounded-xl border border-accent/30 bg-accent/10 px-3 text-accent transition-colors hover:bg-accent/15 focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+                        aria-label="Buscar usuario"
+                      >
+                        {isSearchingUsers ? (
+                          <Loader2 className="size-4 animate-spin" />
+                        ) : (
+                          <UserRoundSearch className="size-4" />
+                        )}
+                      </button>
+                    </div>
+
+                    <div className="mt-3 flex flex-col gap-2">
+                      {userSearchResults.map((user) => {
+                        const isUpdating = isUpdatingUserAccess === user.user_id;
+                        const isDisabled = user.disabled_at !== null;
+
+                        return (
+                          <article
+                            key={user.user_id}
+                            className="flex items-center gap-3 rounded-xl border border-accent/15 bg-surface px-3 py-3"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-base font-medium text-foreground">
+                                {user.user_name}
+                              </p>
+                              <p className="mt-1 truncate text-sm text-muted">
+                                {user.institutional_username} · {user.user_role}
+                              </p>
+                              {isDisabled && user.disabled_reason && (
+                                <p className="mt-1 text-sm text-rose-400">{user.disabled_reason}</p>
+                              )}
+                            </div>
+                            {isDisabled ? (
+                              <button
+                                type="button"
+                                onClick={() => void updateUserAccess("restore", user)}
+                                disabled={isUpdating}
+                                className="flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg border border-accent/35 bg-accent/10 px-2.5 text-base text-accent disabled:opacity-40"
+                              >
+                                {isUpdating ? (
+                                  <Loader2 className="size-4 animate-spin" />
+                                ) : (
+                                  <RotateCcw className="size-4" />
+                                )}
+                                Restaurar
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setSuspensionTarget(user)}
+                                disabled={isUpdating || user.user_role === "admin"}
+                                className="flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg border border-rose-500/35 bg-rose-500/10 px-2.5 text-base text-rose-400 disabled:opacity-40"
+                              >
+                                <Ban className="size-4" />
+                                Suspender
+                              </button>
+                            )}
+                          </article>
+                        );
+                      })}
+                    </div>
+                  </section>
+                </>
+              )}
+
+              {activeArea === "data" && (
+                <section className="rounded-2xl border border-accent/15 bg-input/30 px-4 py-4">
+                  <p className="text-xs font-medium tracking-[0.12em] text-dim uppercase">Datos</p>
+                  <h2 className="mt-1 text-lg font-semibold text-foreground">
+                    Exportación operativa
+                  </h2>
+                  <p className="mt-1 text-sm text-muted">
+                    Filtra reservas, asistencia, warnings o sanciones. Los datos de perfil
+                    corresponden al instante de cada registro.
+                  </p>
+
+                  <div className="mt-4 grid grid-cols-3 gap-1 rounded-xl border border-divider bg-surface p-1">
+                    <button
+                      type="button"
+                      onClick={() => setExportPeriod("week")}
+                      className={getSegmentedControlClassName(exportPeriod === "week")}
+                    >
+                      Semana
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setExportPeriod("month")}
+                      className={getSegmentedControlClassName(exportPeriod === "month")}
+                    >
+                      Mes
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setExportPeriod("custom")}
+                      className={getSegmentedControlClassName(exportPeriod === "custom")}
+                    >
+                      Rango
+                    </button>
+                  </div>
+
+                  {exportPeriod === "custom" ? (
+                    <div className="mt-3 grid grid-cols-2 gap-3">
+                      <label className="flex flex-col gap-2 text-sm text-foreground-muted">
                         Desde
                         <input
                           type="date"
-                          min={today}
-                          value={closureStartDate}
-                          onChange={(event) => setClosureStartDate(event.target.value)}
-                          className="gusm-control-height rounded-xl border border-divider bg-surface px-3 text-base text-foreground outline-none focus:border-accent/60"
+                          value={exportStartDate}
+                          onChange={(event) => setExportStartDate(event.target.value)}
+                          className="gusm-input-primary"
                         />
                       </label>
-                      <label className="flex min-w-0 flex-col gap-2 text-sm text-muted">
+                      <label className="flex flex-col gap-2 text-sm text-foreground-muted">
                         Hasta
                         <input
                           type="date"
-                          min={closureStartDate}
-                          value={closureEndDate}
-                          onChange={(event) => setClosureEndDate(event.target.value)}
-                          className="gusm-control-height rounded-xl border border-divider bg-surface px-3 text-base text-foreground outline-none focus:border-accent/60"
+                          value={exportEndDate}
+                          onChange={(event) => setExportEndDate(event.target.value)}
+                          className="gusm-input-primary"
                         />
                       </label>
                     </div>
                   ) : (
-                    <label className="flex flex-col gap-2 text-sm text-muted">
-                      Fecha
+                    <label className="mt-3 flex flex-col gap-2 text-sm text-foreground-muted">
+                      Fecha de referencia
                       <input
                         type="date"
-                        min={today}
-                        value={closureStartDate}
-                        onChange={(event) => setClosureStartDate(event.target.value)}
-                        className="gusm-control-height rounded-xl border border-divider bg-surface px-3 text-base text-foreground outline-none focus:border-accent/60"
+                        value={exportAnchor}
+                        onChange={(event) => setExportAnchor(event.target.value)}
+                        className="gusm-input-primary"
                       />
                     </label>
                   )}
 
-                  {closureFrequency === "once" && closureCoverage === "block" && (
-                    <label className="flex flex-col gap-2 text-sm text-muted">
-                      Bloque horario
-                      <select
-                        value={closureTimeBlockId}
-                        onChange={(event) => setClosureTimeBlockId(event.target.value)}
-                        className="gusm-control-height rounded-xl border border-divider bg-surface px-3 text-base text-foreground outline-none focus:border-accent/60"
-                      >
-                        {configuration.timeBlocks.map((timeBlock) => (
-                          <option key={timeBlock.timeBlockId} value={timeBlock.timeBlockId}>
-                            Bloque {timeBlock.timeBlockId} · {getTimeRange(timeBlock)}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  )}
-
-                  <label className="flex flex-col gap-2 text-sm text-muted">
-                    Motivo
-                    <textarea
-                      value={closureReason}
-                      onChange={(event) => setClosureReason(event.target.value)}
-                      maxLength={240}
-                      rows={3}
-                      placeholder="Ej.: Mantención de equipamiento"
-                      className="rounded-xl border border-divider bg-surface px-3 py-2 text-base text-foreground outline-none placeholder:text-dim focus:border-accent/60"
-                    />
-                  </label>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => void createClosure()}
-                  disabled={isSavingClosure}
-                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-accent/35 bg-accent/10 py-3 text-base text-accent active:scale-[0.98] disabled:opacity-40"
-                >
-                  {isSavingClosure ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <CalendarDays className="size-4" />
-                  )}
-                  Guardar inhabilitación
-                </button>
-              </section>
-
-              <section className="rounded-2xl border border-divider bg-input/20 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-base font-semibold text-foreground">
-                      Inhabilitaciones vigentes
-                    </h2>
-                    <p className="mt-1 text-sm text-muted">
-                      Las puntuales vencen al terminar su fecha.
-                    </p>
-                  </div>
-                  <span className="rounded-full border border-divider px-2 py-1 text-sm text-muted">
-                    {closures.length}
-                  </span>
-                </div>
-
-                <div className="mt-4 flex flex-col gap-2">
-                  {closures.length === 0 ? (
-                    <p className="rounded-xl border border-divider bg-surface px-3 py-4 text-center text-sm text-dim">
-                      No hay bloques inhabilitados.
-                    </p>
-                  ) : (
-                    closures.map((closure) => {
-                      const closureKey = getClosureKey(closure);
-                      const isRemoving = removingClosureKey === closureKey;
-                      const closureLabel = getClosureLabel(closure, configuration.timeBlocks);
-
-                      return (
-                        <article
-                          key={closureKey}
-                          className="flex items-start gap-3 rounded-xl border border-divider bg-surface px-3 py-3"
-                        >
-                          {closure.scope === "weekly" ? (
-                            <Repeat2
-                              className="mt-0.5 size-4 shrink-0 text-accent"
-                              aria-hidden="true"
-                            />
-                          ) : closure.scope === "period" ? (
-                            <CalendarRange
-                              className="mt-0.5 size-4 shrink-0 text-accent"
-                              aria-hidden="true"
-                            />
-                          ) : (
-                            <CalendarDays
-                              className="mt-0.5 size-4 shrink-0 text-accent"
-                              aria-hidden="true"
-                            />
-                          )}
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium text-foreground">{closureLabel}</p>
-                            <p className="mt-1 text-sm text-muted">{closure.reason}</p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => void removeClosure(closure)}
-                            disabled={isRemoving}
-                            aria-label={`Anular ${closureLabel}`}
-                            className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-rose-500/30 bg-rose-500/5 text-rose-400 disabled:opacity-40"
-                          >
-                            {isRemoving ? (
-                              <Loader2 className="size-4 animate-spin" />
-                            ) : (
-                              <Trash2 className="size-4" />
-                            )}
-                          </button>
-                        </article>
-                      );
-                    })
-                  )}
-                </div>
-              </section>
-
-              <section className="rounded-2xl border border-divider bg-input/20 p-4">
-                <div className="flex items-start gap-3 text-accent">
-                  <ShieldAlert className="mt-0.5 size-6 shrink-0" aria-hidden="true" />
-                  <div>
-                    <h2 className="text-base font-semibold text-foreground">Reglas de castigo</h2>
-                    <p className="mt-1 text-sm text-muted">
-                      Cada falta se evalúa en una ventana móvil. La sanción se aplica al alcanzar
-                      exactamente el umbral.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-4 flex flex-col gap-3">
-                  <label className="flex flex-col gap-2 text-sm text-muted">
-                    Tipo de falta
+                  <label className="mt-3 flex flex-col gap-2 text-sm text-foreground-muted">
+                    Categoría
                     <select
-                      value={disciplineViolationType}
+                      value={exportCategory}
                       onChange={(event) => {
-                        if (isDisciplineViolationType(event.target.value)) {
-                          setDisciplineViolationType(event.target.value);
-                        }
+                        const category = event.target.value;
+                        if (isExportCategory(category)) setExportCategory(category);
                       }}
-                      className="gusm-control-height rounded-xl border border-divider bg-surface px-3 text-base text-foreground outline-none focus:border-accent/60"
+                      className="gusm-input-primary"
                     >
-                      {Object.entries(DISCIPLINE_VIOLATION_LABELS).map(([value, label]) => (
+                      {Object.entries(EXPORT_CATEGORY_LABELS).map(([value, label]) => (
                         <option key={value} value={value}>
                           {label}
                         </option>
@@ -1036,296 +1481,22 @@ export default function ConfigurationPage() {
                     </select>
                   </label>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <label className="flex flex-col gap-2 text-sm text-muted">
-                      Repeticiones
-                      <input
-                        type="number"
-                        min="1"
-                        step="1"
-                        value={disciplineThreshold}
-                        onChange={(event) => setDisciplineThreshold(event.target.value)}
-                        className="gusm-control-height rounded-xl border border-divider bg-surface px-3 text-base text-foreground outline-none focus:border-accent/60"
-                      />
-                    </label>
-                    <label className="flex flex-col gap-2 text-sm text-muted">
-                      En últimos días
-                      <input
-                        type="number"
-                        min="1"
-                        max="365"
-                        step="1"
-                        value={disciplineWindowDays}
-                        onChange={(event) => setDisciplineWindowDays(event.target.value)}
-                        className="gusm-control-height rounded-xl border border-divider bg-surface px-3 text-base text-foreground outline-none focus:border-accent/60"
-                      />
-                    </label>
-                  </div>
+                  <p className="mt-2 text-sm text-dim">
+                    {getDateLabel(exportRange.startDate)} a {getDateLabel(exportRange.endDate)}. El
+                    rango máximo es de 32 días.
+                  </p>
 
-                  <label className="flex flex-col gap-2 text-sm text-muted">
-                    Sanción
-                    <select
-                      value={disciplineActionKind}
-                      onChange={(event) => {
-                        if (isDisciplineActionKind(event.target.value)) {
-                          setDisciplineActionKind(event.target.value);
-                        }
-                      }}
-                      className="gusm-control-height rounded-xl border border-divider bg-surface px-3 text-base text-foreground outline-none focus:border-accent/60"
-                    >
-                      {Object.entries(DISCIPLINE_ACTION_LABELS).map(([value, label]) => (
-                        <option key={value} value={value}>
-                          {label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => void saveDisciplineRule()}
-                  disabled={isSavingDiscipline}
-                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-accent/35 bg-accent/10 py-3 text-base text-accent active:scale-[0.98] disabled:opacity-40"
-                >
-                  {isSavingDiscipline ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <ShieldAlert className="size-4" />
-                  )}
-                  Guardar regla
-                </button>
-
-                <div className="mt-4 flex flex-col gap-2">
-                  {disciplineRules.length === 0 ? (
-                    <p className="rounded-xl border border-divider bg-surface px-3 py-4 text-center text-sm text-dim">
-                      No hay reglas de castigo activas.
-                    </p>
-                  ) : (
-                    disciplineRules.map((rule) => {
-                      const isRemoving = removingDisciplineRuleId === rule.discipline_rule_id;
-                      const actionLabel = DISCIPLINE_ACTION_LABELS[rule.action_kind];
-                      const violationLabel = DISCIPLINE_VIOLATION_LABELS[rule.violation_type];
-
-                      return (
-                        <article
-                          key={rule.discipline_rule_id}
-                          className="flex items-center gap-3 rounded-xl border border-divider bg-surface px-3 py-3"
-                        >
-                          <ShieldAlert className="size-4 shrink-0 text-accent" aria-hidden="true" />
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium text-foreground">
-                              {getDisciplineRuleSummary(rule)} en {rule.window_days} días
-                            </p>
-                            <p className="mt-1 text-sm text-muted">{actionLabel}</p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => void removeDisciplineRule(rule.discipline_rule_id)}
-                            disabled={isRemoving}
-                            aria-label={`Desactivar regla: ${violationLabel}`}
-                            className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-rose-500/30 bg-rose-500/5 text-rose-400 disabled:opacity-40"
-                          >
-                            {isRemoving ? (
-                              <Loader2 className="size-4 animate-spin" />
-                            ) : (
-                              <Trash2 className="size-4" />
-                            )}
-                          </button>
-                        </article>
-                      );
-                    })
-                  )}
-                </div>
-              </section>
-
-              <section className="rounded-2xl border border-divider bg-input/20 p-4">
-                <div className="flex items-start gap-3 text-accent">
-                  <UserRoundSearch className="mt-0.5 size-6 shrink-0" aria-hidden="true" />
-                  <div>
-                    <h2 className="text-base font-semibold text-foreground">Acceso de usuarios</h2>
-                    <p className="mt-1 text-sm text-muted">
-                      Deshabilita o restaura una cuenta por su usuario institucional. No elimina su
-                      historial.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-4 flex gap-2">
-                  <input
-                    type="search"
-                    value={userQuery}
-                    onChange={(event) => setUserQuery(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") void searchUsers();
-                    }}
-                    placeholder="usuario institucional"
-                    className="gusm-control-height min-w-0 flex-1 rounded-xl border border-divider bg-surface px-3 text-base text-foreground outline-none placeholder:text-dim focus:border-accent/60"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => void searchUsers()}
-                    disabled={isSearchingUsers}
-                    className="flex shrink-0 items-center justify-center rounded-xl border border-accent/35 bg-accent/10 px-3 text-accent active:scale-[0.98] disabled:opacity-40"
-                    aria-label="Buscar usuario"
+                  <a
+                    href={exportUrl}
+                    onClick={validateExportRange}
+                    aria-disabled={!isExportRangeValid}
+                    className="mt-4 inline-flex gusm-button-primary items-center justify-center gap-2"
                   >
-                    {isSearchingUsers ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : (
-                      <UserRoundSearch className="size-4" />
-                    )}
-                  </button>
-                </div>
-
-                <div className="mt-3 flex flex-col gap-2">
-                  {userSearchResults.map((user) => {
-                    const isUpdating = isUpdatingUserAccess === user.user_id;
-                    const isDisabled = user.disabled_at !== null;
-
-                    return (
-                      <article
-                        key={user.user_id}
-                        className="flex items-center gap-3 rounded-xl border border-divider bg-surface px-3 py-3"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-base font-medium text-foreground">
-                            {user.user_name}
-                          </p>
-                          <p className="mt-1 truncate text-sm text-muted">
-                            {user.institutional_username} · {user.user_role}
-                          </p>
-                          {isDisabled && user.disabled_reason && (
-                            <p className="mt-1 text-sm text-rose-400">{user.disabled_reason}</p>
-                          )}
-                        </div>
-                        {isDisabled ? (
-                          <button
-                            type="button"
-                            onClick={() => void updateUserAccess("restore", user)}
-                            disabled={isUpdating}
-                            className="flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg border border-accent/35 bg-accent/10 px-2.5 text-base text-accent disabled:opacity-40"
-                          >
-                            {isUpdating ? (
-                              <Loader2 className="size-4 animate-spin" />
-                            ) : (
-                              <RotateCcw className="size-4" />
-                            )}
-                            Restaurar
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => setSuspensionTarget(user)}
-                            disabled={isUpdating || user.user_role === "admin"}
-                            className="flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg border border-rose-500/35 bg-rose-500/10 px-2.5 text-base text-rose-400 disabled:opacity-40"
-                          >
-                            <Ban className="size-4" />
-                            Suspender
-                          </button>
-                        )}
-                      </article>
-                    );
-                  })}
-                </div>
-              </section>
-
-              <section className="rounded-2xl border border-divider bg-input/20 p-4">
-                <h2 className="text-base font-semibold text-foreground">Exportación operativa</h2>
-                <p className="mt-1 text-sm text-muted">
-                  Filtra reservas, asistencia, warnings o sanciones. Los datos de perfil
-                  corresponden al instante de cada registro.
-                </p>
-
-                <div className="mt-4 grid grid-cols-3 gap-2 rounded-xl border border-divider bg-surface p-1">
-                  <button
-                    type="button"
-                    onClick={() => setExportPeriod("week")}
-                    className={`rounded-lg py-2 text-base ${exportPeriod === "week" ? "bg-accent-fill text-accent-foreground" : "text-muted"}`}
-                  >
-                    Semana
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setExportPeriod("month")}
-                    className={`rounded-lg py-2 text-base ${exportPeriod === "month" ? "bg-accent-fill text-accent-foreground" : "text-muted"}`}
-                  >
-                    Mes
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setExportPeriod("custom")}
-                    className={`rounded-lg py-2 text-base ${exportPeriod === "custom" ? "bg-accent-fill text-accent-foreground" : "text-muted"}`}
-                  >
-                    Rango
-                  </button>
-                </div>
-
-                {exportPeriod === "custom" ? (
-                  <div className="mt-3 grid grid-cols-2 gap-3">
-                    <label className="flex flex-col gap-2 text-sm text-muted">
-                      Desde
-                      <input
-                        type="date"
-                        value={exportStartDate}
-                        onChange={(event) => setExportStartDate(event.target.value)}
-                        className="gusm-control-height rounded-xl border border-divider bg-surface px-3 text-base text-foreground outline-none focus:border-accent/60"
-                      />
-                    </label>
-                    <label className="flex flex-col gap-2 text-sm text-muted">
-                      Hasta
-                      <input
-                        type="date"
-                        value={exportEndDate}
-                        onChange={(event) => setExportEndDate(event.target.value)}
-                        className="gusm-control-height rounded-xl border border-divider bg-surface px-3 text-base text-foreground outline-none focus:border-accent/60"
-                      />
-                    </label>
-                  </div>
-                ) : (
-                  <label className="mt-3 flex flex-col gap-2 text-sm text-muted">
-                    Fecha de referencia
-                    <input
-                      type="date"
-                      value={exportAnchor}
-                      onChange={(event) => setExportAnchor(event.target.value)}
-                      className="gusm-control-height rounded-xl border border-divider bg-surface px-3 text-base text-foreground outline-none focus:border-accent/60"
-                    />
-                  </label>
-                )}
-
-                <label className="mt-3 flex flex-col gap-2 text-sm text-muted">
-                  Categoría
-                  <select
-                    value={exportCategory}
-                    onChange={(event) => {
-                      const category = event.target.value;
-                      if (isExportCategory(category)) setExportCategory(category);
-                    }}
-                    className="gusm-control-height rounded-xl border border-divider bg-surface px-3 text-base text-foreground outline-none focus:border-accent/60"
-                  >
-                    {Object.entries(EXPORT_CATEGORY_LABELS).map(([value, label]) => (
-                      <option key={value} value={value}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <p className="mt-2 text-sm text-dim">
-                  {getDateLabel(exportRange.startDate)} a {getDateLabel(exportRange.endDate)}. El
-                  rango máximo es de 32 días.
-                </p>
-
-                <a
-                  href={exportUrl}
-                  onClick={validateExportRange}
-                  aria-disabled={!isExportRangeValid}
-                  className="mt-4 inline-flex items-center justify-center gap-2 rounded-xl border border-accent/35 bg-accent/10 px-4 py-2.5 text-base text-accent active:scale-[0.98]"
-                >
-                  <Download className="size-4" aria-hidden="true" />
-                  Descargar CSV
-                </a>
-              </section>
+                    <Download className="size-4" aria-hidden="true" />
+                    Descargar CSV
+                  </a>
+                </section>
+              )}
             </>
           )}
         </div>
@@ -1340,8 +1511,10 @@ export default function ConfigurationPage() {
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-sm font-medium tracking-widest text-rose-400">SUSPENSIÓN</p>
-                  <h2 id="suspension-title" className="mt-2 text-xl font-semibold text-foreground">
+                  <p className="text-xs font-medium tracking-[0.12em] text-rose-400 uppercase">
+                    Suspensión
+                  </p>
+                  <h2 id="suspension-title" className="mt-1 text-lg font-semibold text-foreground">
                     Deshabilitar a {suspensionTarget.user_name}
                   </h2>
                 </div>
@@ -1366,7 +1539,7 @@ export default function ConfigurationPage() {
                   maxLength={240}
                   rows={3}
                   placeholder="Ej.: Incumplimiento reiterado de las normas"
-                  className="rounded-xl border border-divider bg-input px-3 py-2 text-base text-foreground outline-none placeholder:text-dim focus:border-rose-500/60"
+                  className="gusm-input-primary resize-y focus-visible:border-rose-500/60"
                 />
               </label>
               <div className="mt-5 flex gap-3">
