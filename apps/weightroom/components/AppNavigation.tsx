@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { CalendarDays, Newspaper, QrCode, User, type LucideIcon } from "lucide-react";
+import { BarChart3, CalendarDays, Newspaper, QrCode, User, type LucideIcon } from "lucide-react";
 import clsx from "clsx";
 import { getCurrentUser } from "@/lib/current-user";
 import { CURRENT_USER_QUERY_KEY } from "@/lib/query-keys";
@@ -25,6 +25,7 @@ function getNavigationItems(): NavigationItem[] {
     { href: "/reserva", icon: CalendarDays, label: "Reserva" },
     { href: "/perfil", icon: User, label: "Perfil" },
     { href: "/qr", icon: QrCode, label: "QR" },
+    { href: "/estadisticas", icon: BarChart3, label: "Cifras" },
     { href: "/noticias", icon: Newspaper, label: "Noticias" },
   ];
 }
@@ -34,6 +35,8 @@ function isNavigationVisible(pathname: string): boolean {
 }
 
 function NavigationLinks({ items, pathname }: { items: NavigationItem[]; pathname: string }) {
+  const usesCompactLayout = items.length > 4;
+
   return items.map((item) => {
     const Icon = item.icon;
     const isActive = pathname === item.href;
@@ -45,12 +48,16 @@ function NavigationLinks({ items, pathname }: { items: NavigationItem[]; pathnam
         aria-current={isActive ? "page" : undefined}
         title={item.label}
         className={clsx(
-          "flex size-13 shrink-0 flex-col items-center justify-center gap-0.5 rounded-md",
+          "flex shrink-0 flex-col items-center justify-center gap-0.5 rounded-md",
           "p-0 text-[length:var(--font-size-bottom-navigation)] font-normal leading-4 transition-colors focus-visible:bg-input focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent focus-visible:outline-none active:scale-[0.98]",
+          usesCompactLayout ? "size-12" : "size-13",
           isActive ? "bg-accent/15 text-accent" : "text-muted hover:bg-input hover:text-foreground",
         )}
       >
-        <Icon className="size-5.5 shrink-0" aria-hidden="true" />
+        <Icon
+          className={usesCompactLayout ? "size-5 shrink-0" : "size-5.5 shrink-0"}
+          aria-hidden="true"
+        />
         <span className="truncate">{item.label}</span>
       </Link>
     );
@@ -75,7 +82,10 @@ export function AppNavigation({ children }: AppNavigationProps) {
       {hasNavigation && (
         <nav
           aria-label="Navegación principal"
-          className="fixed bottom-[max(env(safe-area-inset-bottom),0.75rem)] left-1/2 z-30 flex min-h-17 w-fit max-w-[calc(100%-1rem)] -translate-x-1/2 items-center justify-center gap-3 rounded-s-full rounded-e-full border border-divider/65 bg-transparent px-4 py-2 shadow-[0_6px_20px_rgb(0_0_0_/_0.12)] backdrop-blur-[2px] backdrop-saturate-125"
+          className={clsx(
+            "fixed bottom-[max(env(safe-area-inset-bottom),0.75rem)] left-1/2 z-30 flex min-h-17 w-fit max-w-[calc(100%-1rem)] -translate-x-1/2 items-center justify-center rounded-s-full rounded-e-full border border-divider/65 bg-transparent py-2 shadow-[0_6px_20px_rgb(0_0_0_/_0.12)] backdrop-blur-[2px] backdrop-saturate-125",
+            items.length > 4 ? "gap-1.5 px-3" : "gap-3 px-4",
+          )}
         >
           <NavigationLinks items={items} pathname={pathname} />
         </nav>
