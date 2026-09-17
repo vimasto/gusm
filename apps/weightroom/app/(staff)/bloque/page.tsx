@@ -283,7 +283,7 @@ export default function CurrentBlockPage() {
                 return (
                   <motion.article
                     key={participant.id}
-                    layout
+                    layout="position"
                     transition={
                       shouldReduceMotion
                         ? { duration: 0 }
@@ -329,36 +329,33 @@ export default function CurrentBlockPage() {
                     <AnimatePresence initial={false}>
                       {isActionOpen && (
                         <motion.div
-                          initial={
-                            shouldReduceMotion
-                              ? false
-                              : { opacity: 0, y: -5, clipPath: "inset(0 0 100% 0)" }
-                          }
-                          animate={{ opacity: 1, y: 0, clipPath: "inset(0 0 0% 0)" }}
-                          exit={
-                            shouldReduceMotion
-                              ? undefined
-                              : { opacity: 0, y: -3, clipPath: "inset(0 0 100% 0)" }
-                          }
+                          className="overflow-hidden"
+                          initial={shouldReduceMotion ? false : { height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={shouldReduceMotion ? undefined : { height: 0, opacity: 0 }}
                           transition={
                             shouldReduceMotion
                               ? { duration: 0 }
-                              : { duration: 0.18, ease: [0.16, 1, 0.3, 1] }
+                              : {
+                                  height: { duration: 0.24, ease: [0.16, 1, 0.3, 1] },
+                                  opacity: { duration: 0.12, delay: 0.1 },
+                                }
                           }
-                          className="mt-3 flex items-center gap-2 border-t border-accent/15 pt-3"
                         >
-                          <button
-                            type="button"
-                            onClick={() => handleParticipantAction(participant)}
-                            className="flex w-full gusm-button-primary items-center justify-center gap-2"
-                          >
-                            {participant.status === "confirmed" ? (
-                              <Clock3 className="size-4" aria-hidden="true" />
-                            ) : (
-                              <CheckCircle2 className="size-4" aria-hidden="true" />
-                            )}
-                            {actionLabel}
-                          </button>
+                          <div className="mt-3 flex items-center gap-2 border-t border-accent/15 pt-3">
+                            <button
+                              type="button"
+                              onClick={() => handleParticipantAction(participant)}
+                              className="flex w-full gusm-button-primary items-center justify-center gap-2"
+                            >
+                              {participant.status === "confirmed" ? (
+                                <Clock3 className="size-4" aria-hidden="true" />
+                              ) : (
+                                <CheckCircle2 className="size-4" aria-hidden="true" />
+                              )}
+                              {actionLabel}
+                            </button>
+                          </div>
                         </motion.div>
                       )}
                     </AnimatePresence>

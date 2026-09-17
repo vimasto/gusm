@@ -86,10 +86,10 @@ export function BookingCard({
 
   return (
     <motion.article
-      layout
+      layout="position"
+      animate={{ height: actions ? "10rem" : "6rem" }}
       className={clsx(
-        "w-full shrink-0 rounded-xl border px-3.5 py-3",
-        actions ? "h-40" : "h-24",
+        "w-full shrink-0 overflow-hidden rounded-xl border px-3.5 py-3",
         isDisabled && "opacity-40 grayscale",
         getCardSurfaceClass(actionState, isSelected),
       )}
@@ -97,7 +97,8 @@ export function BookingCard({
         shouldReduceMotion
           ? { duration: 0 }
           : {
-              layout: { duration: 0.34, ease: [0.16, 1, 0.3, 1] },
+              height: { duration: 0.28, ease: [0.16, 1, 0.3, 1] },
+              layout: { duration: 0.28, ease: [0.16, 1, 0.3, 1] },
             }
       }
     >
@@ -118,17 +119,13 @@ export function BookingCard({
         {actions && (
           <motion.div
             className="mt-3 flex h-11 items-center justify-end"
-            initial={
-              shouldReduceMotion ? false : { opacity: 0, y: 5, clipPath: "inset(0 0 100% 0)" }
-            }
-            animate={{ opacity: 1, y: 0, clipPath: "inset(0 0 0% 0)" }}
-            exit={
-              shouldReduceMotion ? undefined : { opacity: 0, y: 2, clipPath: "inset(0 0 100% 0)" }
-            }
+            initial={shouldReduceMotion ? false : { opacity: 0, y: 5 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={shouldReduceMotion ? undefined : { opacity: 0, y: 2 }}
             transition={
               shouldReduceMotion
                 ? { duration: 0 }
-                : { duration: 0.18, delay: 0.12, ease: [0.16, 1, 0.3, 1] }
+                : { duration: 0.14, delay: 0.13, ease: [0.16, 1, 0.3, 1] }
             }
           >
             {actions}
