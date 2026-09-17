@@ -157,6 +157,8 @@ export interface HeatmapCellsProps {
   rowOpacity?: number | readonly number[];
   /** Pointer hover + dimming. Default: true */
   interactive?: boolean;
+  /** Allows a chart to disable pointer interaction for individual bins. */
+  isBinInteractive?: (bin: HeatmapBin) => boolean;
   /** Hide out-of-range bins (GitHub-style ghost cells). Default: true */
   hideGhostCells?: boolean;
 }
@@ -178,6 +180,7 @@ interface HeatmapCellRectProps {
   inactiveOpacity: number;
   inactiveScale: number;
   activeScale: number;
+  isBinInteractive: boolean;
   rowOpacity: number | readonly number[] | undefined;
   hoverState: { isHighlighted: boolean; isDimmed: boolean };
   onEnter: (column: number, row: number, bin: HeatmapBin, x: number, y: number) => void;
@@ -193,6 +196,7 @@ const HeatmapMotionCell = memo(function HeatmapMotionCell({
   inactiveOpacity,
   inactiveScale,
   activeScale,
+  isBinInteractive,
   rowOpacity,
   hoverState,
   onEnter,
@@ -371,10 +375,12 @@ const HeatmapMotionCell = memo(function HeatmapMotionCell({
         {...cellProps}
         fill={targetFill}
         fillOpacity={(cell.opacity ?? 1) * patternFillOpacity * rowOpacityMultiplier}
-        onPointerEnter={() => onEnter(cell.column, cell.row, bin, cell.x, cell.y)}
-        onPointerLeave={onLeave}
+        onPointerEnter={
+          isBinInteractive ? () => onEnter(cell.column, cell.row, bin, cell.x, cell.y) : undefined
+        }
+        onPointerLeave={isBinInteractive ? onLeave : undefined}
         style={{
-          cursor: interactive ? "pointer" : undefined,
+          cursor: interactive && isBinInteractive ? "pointer" : undefined,
           opacity: dataOpacity,
         }}
       />
@@ -398,6 +404,7 @@ export const HeatmapCells = memo(function HeatmapCells({
   activeScale = 1,
   rowOpacity,
   interactive = true,
+  isBinInteractive,
   hideGhostCells = true,
 }: HeatmapCellsProps) {
   const {
@@ -495,8 +502,8 @@ export const HeatmapCells = memo(function HeatmapCells({
               }
 
               const hoverState = computeHeatmapCellFaded(
-                isCellHovering,
-                isLevelHovering,
+                isBinInteractive?.(bin) === false ? false : isCellHovering,
+                isBinInteractive?.(bin) === false ? false : isLevelHovering,
                 hoveredCell,
                 hoveredLegendLevel,
                 cell,
@@ -514,6 +521,7 @@ export const HeatmapCells = memo(function HeatmapCells({
                   inactiveOpacity={inactiveOpacity}
                   inactiveScale={inactiveScale}
                   interactive={cellsInteractive}
+                  isBinInteractive={isBinInteractive?.(bin) !== false}
                   key={`heatmap-cell-${cell.column}-${cell.row}`}
                   onEnter={handleCellEnter}
                   onLeave={handleCellLeave}

@@ -19,6 +19,11 @@ type Props = {
 
 const WEEKEND_ROW_OPACITY = [1, 1, 1, 1, 1, 0, 0] as const;
 
+function isWeekdayBin(date: Date) {
+  const weekday = date.getDay();
+  return weekday !== 0 && weekday !== 6;
+}
+
 function createDate(dateKey: string) {
   const [yearText, monthText, dayText] = dateKey.split("-");
   return new Date(Number(yearText), Number(monthText) - 1, Number(dayText), 12);
@@ -97,7 +102,11 @@ export function AttendanceHeatmap({ attendance }: Props) {
                 margin={{ bottom: 0, left: 28, right: 4, top: 24 }}
                 weekStartDay={1}
               >
-                <HeatmapCells cornerRadius={4} rowOpacity={WEEKEND_ROW_OPACITY} />
+                <HeatmapCells
+                  cornerRadius={4}
+                  isBinInteractive={(bin) => isWeekdayBin(bin.date)}
+                  rowOpacity={WEEKEND_ROW_OPACITY}
+                />
                 <HeatmapXAxis />
                 <HeatmapYAxis
                   labelFormat="full"

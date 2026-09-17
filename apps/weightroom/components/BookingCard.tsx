@@ -25,8 +25,8 @@ function getCardSurfaceClass(actionState: BookingActionState, isSelected: boolea
   if (actionState === "reserved" || actionState === "confirmed") {
     return "border-accent/55 bg-accent/5";
   }
-  if (isSelected) return "border-accent/30 bg-input";
-  return "border-accent/15 bg-input";
+  if (isSelected) return "border-accent/30 bg-input/30";
+  return "border-accent/15 bg-input/30";
 }
 
 export function BookingCard({
