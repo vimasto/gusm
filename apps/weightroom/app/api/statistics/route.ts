@@ -31,10 +31,22 @@ type ClosureData = {
   weeklyClosures: Database["public"]["Tables"]["weekly_time_block_closure"]["Row"][];
 };
 type WeekdayAttendance = {
-  currentMonthAverage: number;
-  historicalAverage: number;
+  average: number;
   weekday: number;
 };
+type WeeklyOccupancy = {
+  capacity: number;
+  date: string;
+  occupied: number;
+  state: "closed" | "current" | "future" | "past";
+  weekday: number;
+};
+type TopStreakUser = {
+  streakWeeks: number;
+  totalAttendances: number;
+  userName: string;
+};
+type ActiveUser = Pick<Database["public"]["Tables"]["app_user"]["Row"], "user_id" | "user_name">;
 
 function getSantiagoDateParts() {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -125,8 +137,18 @@ function getIsoWeekday(dateKey: string) {
   return sundayFirstWeekday === 0 ? 7 : sundayFirstWeekday;
 }
 
-function getLatestDate(firstDate: string, secondDate: string) {
-  return firstDate > secondDate ? firstDate : secondDate;
+function addDays(dateKey: string, dayCount: number) {
+  const { day, month, year } = getDateParts(dateKey);
+  const date = new Date(Date.UTC(year, month - 1, day + dayCount));
+  const nextYear = date.getUTCFullYear();
+  const nextMonth = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const nextDay = String(date.getUTCDate()).padStart(2, "0");
+
+  return `${nextYear}-${nextMonth}-${nextDay}`;
+}
+
+function getWeekStartDate(dateKey: string) {
+  return addDays(dateKey, 1 - getIsoWeekday(dateKey));
 }
 
 async function getBookingRows(startDate: string, endDate: string, status?: "present") {
@@ -233,6 +255,39 @@ function isOperatingDay(dateKey: string, closures: ClosureData) {
   return closures.blockIds.some((timeBlockId) => !closedBlockIds.has(timeBlockId));
 }
 
+function getOpenBlockCount(dateKey: string, closures: ClosureData) {
+  const isoWeekday = getIsoWeekday(dateKey);
+  if (isoWeekday > 5) return 0;
+
+  if (
+    closures.fullDayClosures.some(
+      (closure) => closure.closure_start_date <= dateKey && closure.closure_end_date >= dateKey,
+    )
+  ) {
+    return 0;
+  }
+
+  const closedBlockIds = new Set<number>();
+
+  for (const closure of closures.dateClosures) {
+    if (closure.closure_date === dateKey) closedBlockIds.add(closure.time_block_id);
+  }
+
+  for (const closure of closures.weeklyClosures) {
+    if (closure.iso_weekday === isoWeekday) closedBlockIds.add(closure.time_block_id);
+  }
+
+  return closures.blockIds.filter((timeBlockId) => !closedBlockIds.has(timeBlockId)).length;
+}
+
+function isClosureExemptWeek(weekStartDate: string, closures: ClosureData) {
+  return getDayKeys(weekStartDate, addDays(weekStartDate, 4)).every((dateKey) =>
+    closures.fullDayClosures.some(
+      (closure) => closure.closure_start_date <= dateKey && closure.closure_end_date >= dateKey,
+    ),
+  );
+}
+
 function createAttendanceByDate(bookings: BookingRow[]) {
   const attendanceByDate = new Map<string, number>();
 
@@ -277,6 +332,124 @@ function getWeekdayAverages(
   });
 }
 
+function getEligibleWeekStarts(firstDate: string, today: string, closures: ClosureData) {
+  const eligibleWeekStarts: string[] = [];
+  const firstWeekStart = getWeekStartDate(firstDate);
+  const currentWeekStart = getWeekStartDate(today);
+
+  for (
+    let weekStart = firstWeekStart;
+    weekStart <= currentWeekStart;
+    weekStart = addDays(weekStart, 7)
+  ) {
+    if (!isClosureExemptWeek(weekStart, closures)) eligibleWeekStarts.push(weekStart);
+  }
+
+  return eligibleWeekStarts;
+}
+
+function getTopStreakUsers(
+  attendanceRows: BookingRow[],
+  activeUsers: ActiveUser[],
+  eligibleWeekStarts: string[],
+) {
+  const attendanceCountByUserId = new Map<string, number>();
+  const attendedWeekStartsByUserId = new Map<string, Set<string>>();
+
+  for (const attendance of attendanceRows) {
+    attendanceCountByUserId.set(
+      attendance.user_id,
+      (attendanceCountByUserId.get(attendance.user_id) ?? 0) + 1,
+    );
+
+    const attendedWeeks = attendedWeekStartsByUserId.get(attendance.user_id) ?? new Set<string>();
+    attendedWeeks.add(getWeekStartDate(attendance.booking_date));
+    attendedWeekStartsByUserId.set(attendance.user_id, attendedWeeks);
+  }
+
+  const recentEligibleWeekStarts = eligibleWeekStarts.slice(-2);
+  const topUsers: TopStreakUser[] = [];
+
+  for (const activeUser of activeUsers) {
+    const totalAttendances = attendanceCountByUserId.get(activeUser.user_id) ?? 0;
+    if (totalAttendances === 0) continue;
+
+    const attendedWeekStarts = attendedWeekStartsByUserId.get(activeUser.user_id);
+    if (!attendedWeekStarts) continue;
+
+    let anchorIndex = -1;
+    for (let index = recentEligibleWeekStarts.length - 1; index >= 0; index -= 1) {
+      const weekStart = recentEligibleWeekStarts[index];
+      if (weekStart && attendedWeekStarts.has(weekStart)) {
+        anchorIndex = eligibleWeekStarts.lastIndexOf(weekStart);
+        break;
+      }
+    }
+
+    let streakWeeks = 0;
+    for (let index = anchorIndex; index >= 0; index -= 1) {
+      const weekStart = eligibleWeekStarts[index];
+      if (!weekStart || !attendedWeekStarts.has(weekStart)) break;
+      streakWeeks += 1;
+    }
+
+    topUsers.push({ streakWeeks, totalAttendances, userName: activeUser.user_name });
+  }
+
+  return topUsers
+    .sort((first, second) => {
+      if (second.streakWeeks !== first.streakWeeks) return second.streakWeeks - first.streakWeeks;
+      if (second.totalAttendances !== first.totalAttendances) {
+        return second.totalAttendances - first.totalAttendances;
+      }
+      return first.userName.localeCompare(second.userName, "es-CL");
+    })
+    .slice(0, 10);
+}
+
+function getWeeklyOccupancy(
+  bookingRows: BookingRow[],
+  weekStartDate: string,
+  today: string,
+  standardCapacity: number,
+  closures: ClosureData,
+) {
+  const occupancyByDate = new Map<string, number>();
+
+  for (const booking of bookingRows) {
+    if (booking.booking_date < weekStartDate || booking.booking_date > addDays(weekStartDate, 4)) {
+      continue;
+    }
+
+    const countsTowardOccupancy =
+      booking.status === "present" ||
+      (booking.booking_date >= today &&
+        (booking.status === "reserved" || booking.status === "confirmed"));
+
+    if (!countsTowardOccupancy) continue;
+
+    occupancyByDate.set(booking.booking_date, (occupancyByDate.get(booking.booking_date) ?? 0) + 1);
+  }
+
+  const days: WeeklyOccupancy[] = [];
+  for (let offset = 0; offset < 5; offset += 1) {
+    const date = addDays(weekStartDate, offset);
+    const capacity = getOpenBlockCount(date, closures) * standardCapacity;
+    const state =
+      capacity === 0 ? "closed" : date < today ? "past" : date === today ? "current" : "future";
+
+    days.push({
+      capacity,
+      date,
+      occupied: occupancyByDate.get(date) ?? 0,
+      state,
+      weekday: offset + 1,
+    });
+  }
+
+  return days;
+}
+
 export async function GET(request: NextRequest) {
   const response = new NextResponse();
   const userId = await getAuthenticatedUserId(request, response);
@@ -306,24 +479,29 @@ export async function GET(request: NextRequest) {
     const today = getSantiagoDateKey();
     const startDate = `${firstMonth}-01`;
     const endDate = getMonthEndDate(lastMonth);
-    const [firstPresentDate, recentBookingRows, registeredParticipantResult] = await Promise.all([
-      getFirstPresentDate(),
-      getBookingRows(startDate, endDate),
-      serviceRoleClient
-        .from("app_user")
-        .select("user_id", { count: "exact", head: true })
-        .is("disabled_at", null),
-    ]);
+    const [firstPresentDate, recentBookingRows, activeUsersResult, settingsResult] =
+      await Promise.all([
+        getFirstPresentDate(),
+        getBookingRows(startDate, endDate),
+        serviceRoleClient.from("app_user").select("user_id, user_name").is("disabled_at", null),
+        serviceRoleClient
+          .from("system_settings")
+          .select("standard_capacity")
+          .eq("singleton", true)
+          .maybeSingle(),
+      ]);
 
-    if (registeredParticipantResult.error) {
-      throw new Error("Statistics participant query was rejected.");
+    if (activeUsersResult.error || settingsResult.error || !settingsResult.data) {
+      throw new Error("Statistics participant or settings query was rejected.");
     }
 
     const historyStartDate = firstPresentDate ?? startDate;
-    const currentMonthStartDate = getLatestDate(`${lastMonth}-01`, historyStartDate);
-    const [historicalAttendanceRows, closureData] = await Promise.all([
+    const currentWeekStartDate = getWeekStartDate(today);
+    const closureEndDate = addDays(currentWeekStartDate, 4);
+    const [historicalAttendanceRows, closureData, currentWeekBookingRows] = await Promise.all([
       getBookingRows(historyStartDate, today, "present"),
-      getClosureData(historyStartDate, today),
+      getClosureData(historyStartDate, closureEndDate),
+      getBookingRows(currentWeekStartDate, closureEndDate),
     ]);
 
     const monthlyBuckets = new Map<string, MonthlyBucket>();
@@ -363,12 +541,6 @@ export async function GET(request: NextRequest) {
     }
 
     const attendanceByDate = createAttendanceByDate(historicalAttendanceRows);
-    const currentMonthAverages = getWeekdayAverages(
-      attendanceByDate,
-      currentMonthStartDate,
-      today,
-      closureData,
-    );
     const historicalAverages = getWeekdayAverages(
       attendanceByDate,
       historyStartDate,
@@ -376,10 +548,22 @@ export async function GET(request: NextRequest) {
       closureData,
     );
     const weekdayAttendance: WeekdayAttendance[] = Array.from({ length: 5 }, (_, index) => ({
-      currentMonthAverage: currentMonthAverages[index] ?? 0,
-      historicalAverage: historicalAverages[index] ?? 0,
+      average: historicalAverages[index] ?? 0,
       weekday: index + 1,
     }));
+    const weeklyOccupancy = getWeeklyOccupancy(
+      currentWeekBookingRows,
+      currentWeekStartDate,
+      today,
+      settingsResult.data.standard_capacity,
+      closureData,
+    );
+    const eligibleWeekStarts = getEligibleWeekStarts(historyStartDate, today, closureData);
+    const topStreakUsers = getTopStreakUsers(
+      historicalAttendanceRows,
+      activeUsersResult.data,
+      eligibleWeekStarts,
+    );
     const completedAttendance = attendances + absences;
     const attendanceRate =
       completedAttendance === 0 ? 0 : Math.round((attendances / completedAttendance) * 100);
@@ -394,8 +578,10 @@ export async function GET(request: NextRequest) {
       monthly: monthKeys
         .map((month) => monthlyBuckets.get(month))
         .filter((bucket) => bucket !== undefined),
-      registeredParticipants: registeredParticipantResult.count ?? 0,
+      registeredParticipants: activeUsersResult.data.length,
+      topStreakUsers,
       weekdayAttendance,
+      weeklyOccupancy,
     });
   } catch (error) {
     console.error("[STATISTICS] could not aggregate operational statistics.", error);

@@ -4,11 +4,14 @@ import { useReducedMotion, motion } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useLayoutEffect, useRef, type RefObject } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { RefreshCw } from "lucide-react";
 import { CREATE_SUPABASE_BROWSER_CLIENT } from "@gusm/database/client";
 import clsx from "clsx";
 import { UserTopBar } from "@/components/UserTopBar";
 import { AttendanceHeatmap } from "@/components/statistics/AttendanceHeatmap";
-import { WeekdayAttendanceTrend } from "@/components/statistics/WeekdayAttendanceTrend";
+import { TopStreakUsers } from "@/components/statistics/TopStreakUsers";
+import { WeekdayAttendanceRadar } from "@/components/statistics/WeekdayAttendanceRadar";
+import { WeeklyOccupancyRings } from "@/components/statistics/WeeklyOccupancyRings";
 import { getCurrentUser } from "@/lib/current-user";
 import { clearProfileCache } from "@/lib/profile-cache";
 import { APP_STATISTICS_QUERY_KEY, CURRENT_USER_QUERY_KEY } from "@/lib/query-keys";
@@ -178,22 +181,15 @@ function MonthlyHistogram({
   );
 }
 
-function StatisticsSkeleton() {
+function StatisticsLoading() {
   return (
-    <div className="flex flex-col gap-4" aria-label="Cargando estadísticas" aria-busy="true">
-      <div className="grid grid-cols-2 overflow-hidden rounded-2xl border border-divider bg-input/30">
-        {Array.from({ length: 4 }, (_, index) => (
-          <div
-            key={index}
-            className={clsx(
-              "min-h-28 animate-pulse bg-ghost/60",
-              index % 2 === 0 && "border-r border-divider",
-              index < 2 && "border-b border-divider",
-            )}
-          />
-        ))}
-      </div>
-      <div className="h-72 animate-pulse rounded-2xl border border-divider bg-input/30" />
+    <div
+      className="flex flex-1 flex-col items-center justify-center gap-4 text-center text-muted"
+      aria-busy="true"
+      aria-label="Cargando estadísticas"
+    >
+      <RefreshCw className="size-8 animate-spin text-accent" aria-hidden="true" />
+      <p className="text-base">Preparando las estadísticas de la sala…</p>
     </div>
   );
 }
@@ -212,6 +208,7 @@ export default function StatisticsPage() {
     staleTime: 5 * 60 * 1_000,
   });
   const currentUser = currentUserQuery.data;
+  const isLoadingStatistics = statisticsQuery.isPending;
 
   useLayoutEffect(() => {
     if (!statisticsQuery.data || hasPositionedCharts.current) return;
@@ -251,47 +248,58 @@ export default function StatisticsPage() {
           />
         </header>
 
-        <section className="gusm-page-scroll px-4 pt-6 pb-[calc(6rem+env(safe-area-inset-bottom))]">
-          <h1 className="text-xl font-semibold text-foreground">La sala en cifras</h1>
-          <p className="mt-1 text-sm leading-6 text-muted">
-            Actividad agregada de quienes reservan y entrenan en la sala.
-          </p>
+        <section
+          className={clsx(
+            "gusm-page-scroll px-4 pt-6 pb-[calc(6rem+env(safe-area-inset-bottom))]",
+            isLoadingStatistics && "flex flex-col",
+          )}
+        >
+          {isLoadingStatistics ? (
+            <StatisticsLoading />
+          ) : (
+            <>
+              <h1 className="text-xl font-semibold text-foreground">La sala en cifras</h1>
+              <p className="mt-1 text-sm leading-6 text-muted">
+                Actividad agregada de quienes reservan y entrenan en la sala.
+              </p>
 
-          <div className="mt-6">
-            {statisticsQuery.isPending ? (
-              <StatisticsSkeleton />
-            ) : statisticsQuery.isError || !statisticsQuery.data ? (
-              <div className="rounded-2xl border border-red-500/35 bg-red-500/10 px-4 py-5">
-                <p className="text-base font-medium text-foreground">
-                  No fue posible cargar las estadísticas.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => void statisticsQuery.refetch()}
-                  className="mt-3 min-h-11 rounded-xl bg-accent-fill px-4 text-base font-semibold text-accent-foreground transition-colors hover:bg-accent-fill/85 focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none active:scale-[0.98]"
-                >
-                  Reintentar
-                </button>
+              <div className="mt-6">
+                {statisticsQuery.isError || !statisticsQuery.data ? (
+                  <div className="rounded-2xl border border-red-500/35 bg-red-500/10 px-4 py-5">
+                    <p className="text-base font-medium text-foreground">
+                      No fue posible cargar las estadísticas.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => void statisticsQuery.refetch()}
+                      className="mt-3 min-h-11 rounded-xl bg-accent-fill px-4 text-base font-semibold text-accent-foreground transition-colors hover:bg-accent-fill/85 focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none active:scale-[0.98]"
+                    >
+                      Reintentar
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-4">
+                    <MetricGrid statistics={statisticsQuery.data} />
+                    <MonthlyHistogram
+                      statistics={statisticsQuery.data}
+                      scrollRef={histogramScrollRef}
+                    />
+                    <AttendanceHeatmap attendance={statisticsQuery.data.daily} />
+                    <WeekdayAttendanceRadar
+                      historyStartDate={statisticsQuery.data.historyStartDate}
+                      weekdays={statisticsQuery.data.weekdayAttendance}
+                    />
+                    <WeeklyOccupancyRings occupancy={statisticsQuery.data.weeklyOccupancy} />
+                    <TopStreakUsers users={statisticsQuery.data.topStreakUsers} />
+                    <p className="px-1 text-xs leading-5 text-muted">
+                      Los datos son agregados y se actualizan al volver a esta vista. No se muestran
+                      identidades ni información personal.
+                    </p>
+                  </div>
+                )}
               </div>
-            ) : (
-              <div className="flex flex-col gap-4">
-                <MetricGrid statistics={statisticsQuery.data} />
-                <MonthlyHistogram
-                  statistics={statisticsQuery.data}
-                  scrollRef={histogramScrollRef}
-                />
-                <AttendanceHeatmap attendance={statisticsQuery.data.daily} />
-                <WeekdayAttendanceTrend
-                  historyStartDate={statisticsQuery.data.historyStartDate}
-                  weekdays={statisticsQuery.data.weekdayAttendance}
-                />
-                <p className="px-1 text-xs leading-5 text-muted">
-                  Los datos son agregados y se actualizan al volver a esta vista. No se muestran
-                  identidades ni información personal.
-                </p>
-              </div>
-            )}
-          </div>
+            </>
+          )}
         </section>
       </div>
     </main>
