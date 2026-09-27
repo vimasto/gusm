@@ -278,7 +278,7 @@ export function UserTopBar({
               <div
                 className={clsx(
                   "absolute top-full left-0 z-50 mt-2 flex min-w-52 flex-col rounded-xl",
-                  "border border-divider bg-input p-1 shadow-xl",
+                  "border border-divider bg-surface p-1 shadow-xl",
                   "animate-in fade-in slide-in-from-top-1 duration-200",
                 )}
               >
@@ -380,7 +380,7 @@ export function UserTopBar({
               <div
                 className={clsx(
                   "absolute top-full right-0 z-50 mt-2 flex min-w-52 items-center gap-2 rounded-xl",
-                  "border border-accent/20 bg-input px-3 py-2 shadow-xl",
+                  "border border-accent/20 bg-surface px-3 py-2 shadow-xl",
                   "animate-in fade-in slide-in-from-top-1 duration-200",
                 )}
               >
