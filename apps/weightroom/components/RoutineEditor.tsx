@@ -182,11 +182,8 @@ export function RoutineEditor() {
         <div className="flex items-end justify-between gap-4">
           <div className="min-w-0">
             <h1 id="routine-editor-title" className="text-lg font-semibold text-foreground">
-              Configuración de rutina
+              Crear rutina
             </h1>
-            <p className="mt-1 text-sm text-muted">
-              Arma una pauta antes de asignarla a una persona.
-            </p>
           </div>
           <span className="shrink-0 text-sm text-muted tabular-nums">
             {draftItems.length} ejercicios
