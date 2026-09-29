@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { BarChart3, CalendarDays, Newspaper, QrCode, User, type LucideIcon } from "lucide-react";
 import clsx from "clsx";
 import { getCurrentUser } from "@/lib/current-user";
@@ -67,6 +68,24 @@ function NavigationLinks({ items, pathname }: { items: NavigationItem[]; pathnam
 export function AppNavigation({ children }: AppNavigationProps) {
   const pathname = usePathname();
   const navigationVisible = isNavigationVisible(pathname);
+  const wrapperClassName = navigationVisible
+    ? "h-svh min-h-0 w-full overflow-hidden"
+    : "min-h-svh w-full";
+
+  useEffect(() => {
+    const root = document.documentElement;
+
+    if (navigationVisible) {
+      root.classList.add("gymu-app-viewport");
+    } else {
+      root.classList.remove("gymu-app-viewport");
+    }
+
+    return () => {
+      root.classList.remove("gymu-app-viewport");
+    };
+  }, [navigationVisible]);
+
   const currentUserQuery = useQuery({
     queryKey: CURRENT_USER_QUERY_KEY,
     queryFn: getCurrentUser,
@@ -78,7 +97,7 @@ export function AppNavigation({ children }: AppNavigationProps) {
   const hasNavigation = navigationVisible && currentUser !== undefined;
 
   return (
-    <div className={clsx("min-h-svh w-full", hasNavigation && "gymu-navigation-active")}>
+    <div className={clsx(wrapperClassName, hasNavigation && "gymu-navigation-active")}>
       {hasNavigation && (
         <nav
           aria-label="Navegación principal"

@@ -144,6 +144,13 @@
   filter: grayscale(1) contrast(1000%);
 }
 
+html.gymu-app-viewport,
+html.gymu-app-viewport body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 :root[data-theme-switching],
 :root[data-theme-switching] *,
 :root[data-theme-switching] *::before,

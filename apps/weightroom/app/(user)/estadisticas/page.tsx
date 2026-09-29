@@ -233,7 +233,7 @@ export default function StatisticsPage() {
   }
 
   return (
-    <main className="flex min-h-svh w-full justify-center bg-bg">
+    <main className="flex h-svh min-h-0 w-full justify-center overflow-hidden bg-bg">
       <div className="flex h-svh gusm-app-shell flex-col overflow-hidden">
         <header className="z-20 shrink-0 border-b border-divider bg-surface">
           <UserTopBar
