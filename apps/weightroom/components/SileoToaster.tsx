@@ -12,8 +12,8 @@ const TOASTER_OPTIONS: Partial<SileoOptions> = {
 };
 
 const TOAST_FILL_BY_THEME: Record<AppTheme, string> = {
-  dark: "#191200",
-  light: "#e5e9eb",
+  dark: "#f5b400",
+  light: "#275d8c",
 };
 
 function getAppTheme(): AppTheme {
